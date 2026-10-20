@@ -1,0 +1,3586 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Arma el URDF de tu robot para ROS 2 desde STL: une piezas por el centro de sus agujeros, elige el grado de libertad, materiales y home, y descarga el paquete ROS 2.">
+<meta property="og:title" content="Eslabón URDF">
+<meta property="og:description" content="Arma el URDF de tu robot para ROS 2 desde STL: une piezas por el centro de sus agujeros, elige el grado de libertad, materiales y home, y descarga el paquete ROS 2.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#E6E9ED">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20x%3D%222.5%22%20y%3D%229%22%20width%3D%2217%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%231A1F26%22%20stroke-width%3D%222.6%22/%3E%3Crect%20x%3D%2212.5%22%20y%3D%229%22%20width%3D%2217%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%23F0A030%22%20stroke-width%3D%222.6%22/%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%222.6%22%20fill%3D%22%231A1F26%22/%3E%3C/svg%3E">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Eslabón URDF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Semi+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: herramienta de una pantalla — barra superior, lista de piezas a la izquierda,
+   visor 3D al centro, inspector a la derecha; paneles sobre un fondo de acero frío.
+   Acento: ámbar de cinta kapton (no choca con los colores de ejes X/Y/Z de RViz). */
+:root {
+  --bg: #E6E9ED;
+  --surface: #F8F9FA;
+  --surface-2: #EEF1F4;
+  --surface-3: #E3E7EB;
+  --line: #CDD3DA;
+  --fg: #1A1F26;
+  --muted: #586370;
+  --faint: #87919C;
+  --accent: #A65F00;
+  --accent-fill: #F0A030;
+  --accent-ink: #241604;
+  --accent-soft: #F7E6CB;
+  --x: #D13A3A;
+  --y: #1F9455;
+  --z: #2C68D1;
+  --ok: #1F8650;
+  --warn: #A35F00;
+  --err: #C03232;
+  --vp-top: #F2F4F6;
+  --vp-bottom: #C9D0D8;
+  --grid-major: #96A0AB;
+  --grid-minor: #C2C9D1;
+  --edge: #20262D;
+  --code-bg: #F1F3F5;
+  --scrim: rgba(18, 22, 27, .42);
+  --shadow: 0 1px 2px rgba(20, 30, 40, .06), 0 8px 24px rgba(20, 30, 40, .08);
+  --font-display: "Saira Semi Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101316; --surface: #181C20; --surface-2: #1F242A; --surface-3: #282E35; --line: #2E353D;
+    --fg: #E1E5E9; --muted: #98A3AE; --faint: #67727D;
+    --accent: #F2A93B; --accent-fill: #F0A030; --accent-ink: #1E1203; --accent-soft: #3B2B12;
+    --x: #F25C5C; --y: #3CC07A; --z: #5C8FF2;
+    --ok: #3CC07A; --warn: #F2A93B; --err: #F26666;
+    --vp-top: #283038; --vp-bottom: #121619;
+    --grid-major: #5A6570; --grid-minor: #2E363E;
+    --edge: #0A0C0E; --code-bg: #13171B; --scrim: rgba(0, 0, 0, .55);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101316; --surface: #181C20; --surface-2: #1F242A; --surface-3: #282E35; --line: #2E353D;
+  --fg: #E1E5E9; --muted: #98A3AE; --faint: #67727D;
+  --accent: #F2A93B; --accent-fill: #F0A030; --accent-ink: #1E1203; --accent-soft: #3B2B12;
+  --x: #F25C5C; --y: #3CC07A; --z: #5C8FF2;
+  --ok: #3CC07A; --warn: #F2A93B; --err: #F26666;
+  --vp-top: #283038; --vp-bottom: #121619;
+  --grid-major: #5A6570; --grid-minor: #2E363E;
+  --edge: #0A0C0E; --code-bg: #13171B; --scrim: rgba(0, 0, 0, .55);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+
+html { box-sizing: border-box; height: 100%; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  height: 100%; margin: 0; background: var(--bg); color: var(--fg);
+  font: 400 13.5px/1.45 var(--font-ui); -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 276px minmax(0, 1fr) 324px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  padding-block: 10px 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ── Barra superior ───────────────────────────── */
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; min-width: 0; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { width: 30px; height: 30px; flex: none; }
+.wordmark { font: 700 22px/1 var(--font-display); letter-spacing: .07em; }
+.wordmark-tag {
+  font: 600 10.5px/1 var(--font-mono); letter-spacing: .08em; color: var(--muted);
+  padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px;
+}
+.robot-field { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; min-width: 0; }
+.robot-field input {
+  width: 168px; max-width: 46vw; height: 32px; padding: 0 10px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  font: 500 13px var(--font-mono);
+}
+.top-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+
+/* ── Botones y controles ───────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px; border: 1px solid var(--line); background: var(--surface);
+  border-radius: 7px; cursor: pointer; white-space: nowrap; font-weight: 500; font-size: 13px;
+  transition: border-color .12s, background .12s;
+}
+.btn:hover { border-color: var(--faint); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.btn.primary { background: var(--accent-fill); border-color: transparent; color: var(--accent-ink); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--err); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.sm { height: 28px; padding: 0 9px; font-size: 12.5px; }
+.btn.block { width: 100%; }
+.btn:disabled { opacity: .45; cursor: default; }
+.icon-btn { width: 32px; padding: 0; }
+.btn.sm.icon-btn { width: 28px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1; min-width: 0; }
+
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button {
+  border: 0; background: transparent; height: 26px; padding: 0 10px; border-radius: 6px; cursor: pointer;
+  font-size: 12.5px; color: var(--muted); white-space: nowrap;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); font-weight: 500; }
+
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field > span { font-size: 12px; color: var(--muted); }
+.input, .select {
+  height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--surface); width: 100%; min-width: 0;
+}
+.input.mono { font-size: 12.5px; }
+.input:focus, .select:focus { border-color: var(--accent); outline: none; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.unit-input { position: relative; }
+.unit-input .input { padding-right: 34px; }
+.unit-input em { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 11.5px; color: var(--faint); pointer-events: none; }
+input[type="range"] { width: 100%; accent-color: var(--accent-fill); margin: 0; }
+input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--accent-fill); width: 15px; height: 15px; }
+
+/* ── Paneles ───────────────────────────────────── */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  overflow: auto; min-height: 0; min-width: 0; overscroll-behavior: contain;
+}
+.sec { padding: 14px 14px 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.sec:last-child { border-bottom: 0; }
+.sec-h {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font: 600 12px/1 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+.sec-h .count { font: 500 11px var(--font-mono); letter-spacing: 0; color: var(--faint); }
+.hint { font-size: 12.5px; color: var(--muted); }
+.hint b { color: var(--fg); font-weight: 600; }
+.kbd { font: 500 11px var(--font-mono); padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--fg); background: var(--surface); }
+
+.drop {
+  border: 1.5px dashed var(--line); border-radius: 9px; padding: 14px 12px; display: flex; flex-direction: column;
+  gap: 8px; align-items: center; text-align: center; background: var(--surface-2);
+}
+.drop .hint { font-size: 12px; }
+
+/* Árbol */
+.tree { display: flex; flex-direction: column; gap: 1px; }
+.tree-row {
+  display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  min-width: 0; position: relative; border: 0; background: transparent; text-align: left; width: 100%;
+}
+.tree-row:hover { background: var(--surface-2); }
+.tree-row.sel { background: var(--accent-soft); }
+.tree-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; font-size: 13px; }
+.tree-row.joint .nm { color: var(--muted); font-size: 12.5px; }
+.tree-row .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.tree-row .guide { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.tag {
+  font: 600 10px/1 var(--font-mono); letter-spacing: .05em; padding: 3px 5px; border-radius: 4px;
+  background: var(--surface-3); color: var(--muted); flex: none;
+}
+.tag.base { background: var(--accent-soft); color: var(--accent); }
+.dofb { font: 700 11px/1 var(--font-display); letter-spacing: .03em; padding: 3px 5px; border-radius: 4px; flex: none; border: 1px solid currentColor; }
+.empty-tree { font-size: 12.5px; color: var(--muted); padding: 6px 2px; }
+
+/* Articulaciones (sliders) */
+.jslider { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; }
+.jslider .nm { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jslider .val { font: 500 12px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.jslider input { grid-column: 1 / -1; }
+
+/* Inspector */
+.insp-head { display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { font: 600 11px/1 var(--font-display); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.name-input { font: 600 17px/1.2 var(--font-mono); border: 1px solid transparent; background: transparent; padding: 4px 6px; margin-left: -7px; border-radius: 6px; width: calc(100% + 7px); }
+.name-input:hover { border-color: var(--line); }
+.name-input:focus { border-color: var(--accent); outline: none; background: var(--surface); }
+.rel { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 13px;
+  border: 1px solid var(--line); background: var(--surface-2); font: 500 12px var(--font-mono); cursor: pointer; color: var(--fg);
+  max-width: 100%;
+}
+.chip:hover { border-color: var(--faint); }
+.chip small { font-family: var(--font-ui); color: var(--muted); font-size: 11px; }
+.stats { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 12px; font-size: 12.5px; }
+.stats dt { color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--font-mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.note { font-size: 12.5px; padding: 8px 10px; border-radius: 7px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.note.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.note.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); background: color-mix(in srgb, var(--ok) 8%, var(--surface)); }
+
+.dof { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 6px; align-items: stretch; }
+.dof .row-l { font-size: 12px; color: var(--muted); align-self: center; padding-right: 2px; }
+.dof button {
+  --ax: var(--fg);
+  border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 7px 2px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; min-width: 0;
+}
+.dof button:hover { border-color: var(--ax); }
+.dof button b { font: 700 16px/1 var(--font-display); color: var(--ax); }
+.dof button span { font-size: 10.5px; color: var(--muted); }
+.dof button[aria-pressed="true"] { border-color: var(--ax); background: color-mix(in srgb, var(--ax) 15%, var(--surface)); box-shadow: inset 0 0 0 1px var(--ax); }
+.dof button svg { width: 18px; height: 18px; color: var(--ax); }
+.fixed-btn[aria-pressed="true"] { border-color: var(--fg); background: var(--surface-3); }
+
+.qline { display: flex; align-items: center; gap: 8px; }
+.qline .val { font: 600 15px var(--font-mono); min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.guide-steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.guide-steps li { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 10px; font-size: 13px; counter-increment: s; }
+.guide-steps li::before {
+  content: counter(s); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 12px/1 var(--font-display); background: var(--surface-3); color: var(--fg);
+}
+.guide-steps li p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.bigstats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.bigstats div { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+.bigstats b { display: block; font: 600 18px/1.1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.bigstats span { font-size: 11.5px; color: var(--muted); }
+
+/* ── Visor ─────────────────────────────────────── */
+.viewport-wrap {
+  position: relative; border-radius: 10px; overflow: hidden; min-height: 0; min-width: 0;
+  background: linear-gradient(180deg, var(--vp-top), var(--vp-bottom)); border: 1px solid var(--line);
+}
+#viewport { position: absolute; inset: 0; }
+#viewport canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+.vp-tools {
+  position: absolute; left: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 4px; box-shadow: var(--shadow);
+}
+.vp-tools .sep-h { height: 1px; background: var(--line); margin: 2px 4px; }
+.tool {
+  width: 38px; height: 38px; border-radius: 7px; border: 0; background: transparent; cursor: pointer;
+  display: grid; place-items: center; color: var(--muted); position: relative;
+}
+.tool svg { width: 20px; height: 20px; }
+.tool:hover { background: var(--surface-2); color: var(--fg); }
+.tool[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.tool .k { position: absolute; right: 3px; bottom: 2px; font: 600 9px/1 var(--font-mono); color: var(--faint); }
+.vp-views { position: absolute; right: 10px; top: 10px; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 60%; }
+.vp-views .btn { background: var(--surface); box-shadow: var(--shadow); }
+.banner {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: min(560px, calc(100% - 130px));
+  background: var(--surface); border: 1px solid var(--accent-fill); border-radius: 10px; box-shadow: var(--shadow);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.banner .b-top { display: flex; align-items: flex-start; gap: 10px; }
+.banner .step { font: 700 11px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); white-space: nowrap; padding-top: 3px; }
+.banner .msg { font-size: 13px; flex: 1; min-width: 0; }
+.banner .b-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.vp-status {
+  position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 130px);
+  font-size: 12px; color: var(--fg); background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; pointer-events: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vp-status b { color: var(--accent); font-weight: 600; }
+.example-badge {
+  position: absolute; left: 60px; top: 12px; font: 600 11px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; color: var(--muted);
+}
+.viewport-wrap.jt-on .vp-views, .viewport-wrap.jt-on .example-badge { visibility: hidden; }
+.drop-overlay {
+  position: absolute; inset: 10px; border: 2px dashed var(--accent-fill); border-radius: 10px;
+  display: grid; place-items: center; background: color-mix(in srgb, var(--surface) 70%, transparent);
+  font: 600 18px var(--font-display); letter-spacing: .06em; color: var(--accent); pointer-events: none;
+}
+.boot-msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
+
+/* ── Modal de exportación ──────────────────────── */
+.modal { position: fixed; inset: 0; z-index: 50; background: var(--scrim); display: grid; place-items: center; padding: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.modal-card {
+  width: min(1040px, 100%); max-height: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden;
+}
+.modal-h { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.modal-h h2 { margin: 0; font: 700 20px/1.1 var(--font-display); letter-spacing: .04em; }
+.modal-h .hint { flex: 1; }
+.modal-opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); align-items: end; }
+.modal-body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; min-height: 0; }
+.modal-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.tabs { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { border: 0; background: transparent; padding: 8px 12px; border-bottom: 2px solid transparent; cursor: pointer; color: var(--muted); font-weight: 500; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent-fill); }
+.code {
+  margin: 0; padding: 12px 14px; overflow: auto; min-height: 0; flex: 1; background: var(--code-bg);
+  font: 400 12.2px/1.55 var(--font-mono); white-space: pre; tab-size: 2; color: var(--fg);
+}
+.code .t { color: var(--z); } .code .a { color: var(--accent); } .code .s { color: var(--y); } .code .c { color: var(--faint); font-style: italic; }
+.modal-side { border-left: 1px solid var(--line); padding: 14px; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.modal-f { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 16px; border-top: 1px solid var(--line); align-items: center; }
+.modal-f .hint { margin-right: auto; }
+.warns { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.files { font: 400 12px/1.6 var(--font-mono); color: var(--muted); white-space: pre; overflow-x: auto; }
+
+/* ── Reportes ──────────────────────────────────── */
+.modal-card.narrow { width: min(640px, 100%); grid-template-rows: auto minmax(0, 1fr) auto; }
+.report-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.textarea {
+  width: 100%; min-height: 128px; padding: 9px 10px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface); resize: vertical; line-height: 1.45;
+}
+.textarea:focus { border-color: var(--accent); outline: none; }
+.diag { margin: 6px 0 0; padding: 10px 12px; border-radius: 7px; background: var(--code-bg); border: 1px solid var(--line);
+  font: 11.5px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; color: var(--muted); }
+details summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.mail-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.mail-line .addr { font: 500 12.5px var(--font-mono); color: var(--fg); user-select: all; overflow-wrap: anywhere; }
+.byline { font-size: 12px; color: var(--muted); }
+.byline a { color: var(--accent); }
+a.btn { text-decoration: none; color: inherit; }
+a.btn.primary { color: var(--accent-ink); }
+
+/* ── Avisos ────────────────────────────────────── */
+.toasts { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 6px; align-items: center; width: min(520px, calc(100% - 32px)); pointer-events: none; }
+.toast {
+  background: var(--fg); color: var(--bg); padding: 9px 14px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow);
+  pointer-events: auto; max-width: 100%;
+}
+.toast.warn { background: var(--warn); color: #fff; }
+.toast.err { background: var(--err); color: #fff; }
+.toast { display: flex; align-items: center; gap: 10px; }
+.toast button { flex: none; background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 6px; padding: 3px 9px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+
+/* ── Responsivo ────────────────────────────────── */
+@media (max-width: 1180px) {
+  .app { grid-template-columns: 240px minmax(0, 1fr) 296px; }
+  .modal-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  .app { height: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  .viewport-wrap { height: 62vh; min-height: 380px; order: 1; }
+  .panel.right { order: 2; overflow: visible; }
+  .panel.left { order: 3; overflow: visible; }
+  .top-actions { margin-left: 0; width: 100%; }
+  .top-actions .lbl { display: none; }
+  .banner { width: calc(100% - 64px); left: 56px; transform: none; }
+  .vp-views { max-width: calc(100% - 72px); flex-wrap: nowrap; }
+  .vp-views .btn { padding: 0 8px; }
+  .example-badge { display: none; }
+  .modal { padding: 0; }
+  .modal-card { border-radius: 0; height: 100%; }
+  .modal-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(260px, 1fr) auto; overflow: auto; }
+  .modal-side { border-left: 0; border-top: 1px solid var(--line); }
+  .modal-opts { grid-template-columns: minmax(0, 1fr); }
+  .modal-card.narrow .modal-h .hint { display: none; }
+  .modal-card.narrow .modal-h h2 { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="2.5" y="9" width="17" height="14" rx="7" fill="none" stroke="var(--fg)" stroke-width="2.4"/>
+        <rect x="12.5" y="9" width="17" height="14" rx="7" fill="none" stroke="var(--accent-fill)" stroke-width="2.4"/>
+        <circle cx="16" cy="16" r="2.4" fill="var(--fg)"/>
+      </svg>
+      <span class="wordmark">ESLABÓN</span>
+      <span class="wordmark-tag">URDF · ROS 2</span>
+    </div>
+    <label class="robot-field">Robot
+      <input id="robotName" class="mono" spellcheck="false" autocomplete="off" aria-label="Nombre del robot">
+    </label>
+    <div class="top-actions">
+      <button class="btn sm icon-btn" id="btnUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"></button>
+      <button class="btn sm icon-btn" id="btnRedo" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer"></button>
+      <span class="sep"></span>
+      <button class="btn sm" id="btnNew">Nuevo</button>
+      <button class="btn sm" id="btnExample">Ejemplo</button>
+      <button class="btn sm" id="btnOpen" title="Abrir proyecto (.json)"><span class="lbl">Abrir</span></button>
+      <button class="btn sm" id="btnSave" title="Guardar proyecto (.json)"><span class="lbl">Guardar</span></button>
+      <button class="btn sm" id="btnReport" title="Reportar un error, idea o duda"><span class="lbl">Reportar</span></button>
+      <button class="btn primary" id="btnGenerate">Generar URDF</button>
+    </div>
+  </header>
+
+  <aside class="panel left" id="leftPanel" aria-label="Piezas y jerarquía">
+    <section class="sec">
+      <div class="sec-h">Piezas <span class="count" id="partCount"></span></div>
+      <div class="drop">
+        <button class="btn block" id="btnUpload"></button>
+        <span class="hint">o arrástralos al visor. Unidades del archivo:</span>
+        <div class="seg" id="unitSeg" role="group" aria-label="Unidades del STL"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".stl,.STL" multiple hidden>
+      <input type="file" id="projInput" accept=".json,application/json" hidden>
+    </section>
+    <section class="sec">
+      <div class="sec-h">Jerarquía <span class="count" id="treeCount"></span></div>
+      <div class="tree" id="tree"></div>
+    </section>
+    <section class="sec" id="jointsSec">
+      <div class="sec-h">Articulaciones <span class="count" id="dofCount"></span></div>
+      <div class="row">
+        <button class="btn sm" id="btnPoseZero">Ir a cero</button>
+        <button class="btn sm" id="btnPoseHome">Ir a home</button>
+        <button class="btn sm ghost" id="btnPoseSaveHome" title="Guardar la pose actual como home">Pose → home</button>
+      </div>
+      <div id="jointSliders" style="display:flex;flex-direction:column;gap:10px"></div>
+    </section>
+  </aside>
+
+  <main class="viewport-wrap" id="vpWrap">
+    <div id="viewport"><div class="boot-msg" id="bootMsg">Cargando el visor 3D…</div></div>
+    <div class="vp-tools" id="vpTools" role="toolbar" aria-label="Herramientas"></div>
+    <div class="vp-views" id="vpViews"></div>
+    <div class="example-badge" id="exampleBadge" hidden>Ejemplo · brazo de 4 ejes</div>
+    <div class="banner" id="banner" hidden></div>
+    <div class="vp-status" id="vpStatus">Cargando…</div>
+    <div class="drop-overlay" id="dropOverlay" hidden>Suelta tus STL aquí</div>
+  </main>
+
+  <aside class="panel right" id="inspector" aria-label="Inspector"></aside>
+</div>
+
+<div class="modal" id="exportModal" hidden role="dialog" aria-modal="true" aria-labelledby="exportTitle"></div>
+<div class="modal" id="reportModal" hidden role="dialog" aria-modal="true" aria-labelledby="reportTitle"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+  // Si el motor 3D no carga (red o CDN bloqueados), avisa en lugar de quedarse en blanco.
+  setTimeout(function () {
+    if (!window.__eslabonReady) {
+      var m = document.getElementById('bootMsg');
+      if (m) m.textContent = 'No se pudo cargar el motor 3D (three.js). Revisa tu conexión y recarga la página.';
+      var s = document.getElementById('vpStatus');
+      if (s) s.textContent = 'Sin visor 3D';
+    }
+  }, 15000);
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.8/build/index.module.js"
+} }
+</script>
+<script type="module">
+// ════════════════════════════════════════════════════════════════════
+//  Eslabón URDF — ensamblador visual de robots para ROS 2
+//  01 · núcleo: dependencias, constantes, utilidades, análisis de mallas
+// ════════════════════════════════════════════════════════════════════
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// Aceleración opcional de raycast para STL pesados.
+let BVH = null;
+try {
+  BVH = await import('three-mesh-bvh');
+  THREE.BufferGeometry.prototype.computeBoundsTree = BVH.computeBoundsTree;
+  THREE.BufferGeometry.prototype.disposeBoundsTree = BVH.disposeBoundsTree;
+  THREE.Mesh.prototype.raycast = BVH.acceleratedRaycast;
+} catch (e) { BVH = null; }
+
+// ── Datos de la app y contacto (cámbialos aquí) ────────────────────
+const APP = {
+  name: 'Eslabón URDF',
+  version: '1.1.0',
+  repo: 'flkochu/eslabon-urdf',                       // repo de GitHub donde llegan los reportes
+  author: 'Adán López Lozano',
+  authorUrl: 'https://github.com/flkochu',
+  email: ['lopezlozanoadan1', 'gmail.com'].join('@'), // se arma en JS para que no lo lean los bots
+};
+
+// Registro de errores recientes para adjuntarlos a los reportes.
+const ERRLOG = [];
+function logError(msg) {
+  const m = String(msg).slice(0, 300);
+  const last = ERRLOG[ERRLOG.length - 1];
+  if (last && last.m === m) { last.n++; return; }
+  ERRLOG.push({ t: new Date().toISOString().slice(11, 19), m, n: 1 });
+  if (ERRLOG.length > 15) ERRLOG.shift();
+}
+const benignError = (m) => /ResizeObserver|^Script error\.?$/i.test(String(m || ''));
+window.addEventListener('error', (e) => {
+  if (benignError(e.message)) return;
+  logError(`${e.message} @ ${(e.filename || '').split('/').pop()}:${e.lineno || 0}`);
+  if (typeof onAppError === 'function') onAppError();
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  logError(`Promesa rechazada: ${(r && (r.stack || r.message)) || r}`);
+  if (typeof onAppError === 'function') onAppError();
+});
+
+// ── Constantes ─────────────────────────────────────────────────────
+const DEG = Math.PI / 180;
+const UNITS = [
+  { v: 0.001, l: 'mm' }, { v: 0.01, l: 'cm' }, { v: 1, l: 'm' }, { v: 0.0254, l: 'in' },
+];
+const unitLabel = (u) => (UNITS.find((x) => Math.abs(x.v - u) < 1e-12) || { l: 'mm' }).l;
+
+// Densidades en kg/m³. "printed": pieza impresa en 3D (se usa relleno + paredes).
+const MATERIALS = {
+  pla:      { n: 'PLA', rho: 1240, printed: true },
+  petg:     { n: 'PETG', rho: 1270, printed: true },
+  abs:      { n: 'ABS / ASA', rho: 1060, printed: true },
+  nylon:    { n: 'Nylon PA12', rho: 1010, printed: true },
+  tpu:      { n: 'TPU flexible', rho: 1210, printed: true },
+  placf:    { n: 'PLA-CF / PETG-CF', rho: 1290, printed: true },
+  resina:   { n: 'Resina SLA (sólida)', rho: 1150 },
+  al:       { n: 'Aluminio 6061', rho: 2700, metal: true, color: '#B6BDC4' },
+  al7075:   { n: 'Aluminio 7075', rho: 2810, metal: true, color: '#AAB2BA' },
+  acero:    { n: 'Acero al carbono', rho: 7850, metal: true, color: '#8C939A' },
+  inox:     { n: 'Acero inoxidable', rho: 8000, metal: true, color: '#A6ACB2' },
+  laton:    { n: 'Latón', rho: 8500, metal: true, color: '#C8A55B' },
+  cf:       { n: 'Placa de fibra de carbono', rho: 1600, color: '#2E3236' },
+  acrilico: { n: 'Acrílico', rho: 1180 },
+  mdf:      { n: 'MDF', rho: 750, color: '#B48F68' },
+  custom:   { n: 'Otro (densidad manual)', rho: 1000 },
+};
+
+// Presets aproximados de actuadores (torque/fuerza máximos y velocidad sin carga).
+const ACT_ROT = [
+  { id: 'manual', n: 'Valores manuales' },
+  { id: 'sg90', n: 'Micro servo SG90 / MG90S', e: 0.2, v: 10.5 },
+  { id: 'mg996r', n: 'Servo MG996R', e: 1.0, v: 6.0 },
+  { id: 'ds3218', n: 'Servo DS3218 (20 kg·cm)', e: 1.9, v: 6.5 },
+  { id: 'xl430', n: 'Dynamixel XL430-W250', e: 1.4, v: 6.0 },
+  { id: 'xm430', n: 'Dynamixel XM430-W350', e: 4.1, v: 4.8 },
+  { id: 'nema17', n: 'Paso a paso NEMA 17', e: 0.45, v: 15 },
+  { id: 'nema23', n: 'Paso a paso NEMA 23', e: 1.9, v: 12 },
+  { id: 'qdd', n: 'Brushless + reductor (QDD)', e: 12, v: 20 },
+];
+const ACT_LIN = [
+  { id: 'manual', n: 'Valores manuales' },
+  { id: 'linmicro', n: 'Actuador lineal micro', e: 20, v: 0.02 },
+  { id: 'husillo', n: 'Husillo T8 + NEMA 17', e: 150, v: 0.05 },
+  { id: 'banda', n: 'Banda GT2 + NEMA 17', e: 40, v: 0.3 },
+];
+
+const PART_COLORS = ['#3D7DCA', '#E9E7E1', '#2A9D8F', '#C2413B', '#7A6FD0', '#5E6B78', '#5BA35B', '#D46A9A'];
+
+// ── Utilidades DOM ─────────────────────────────────────────────────
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  let value;
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'style') el.style.cssText = v;
+      else if (k === 'html') el.innerHTML = v;
+      else if (k === 'value') value = v;
+      else if (k === 'checked') el.checked = !!v;
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+  }
+  for (const c of kids.flat(Infinity)) {
+    if (c == null || c === false) continue;
+    el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  if (value !== undefined) el.value = value;
+  return el;
+}
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+
+// Iconos (trazo 24×24)
+const ICONS = {
+  select: '<path d="M5 3.5l13 7.2-5.6 1.6-2.6 5.4z"/><path d="M12.4 12.3l4.8 5.2"/>',
+  move: '<path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
+  rotate: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 3.5v5h-5"/>',
+  joint: '<circle cx="8" cy="12" r="4.2"/><circle cx="16" cy="12" r="4.2"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
+  fit: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>',
+  frames: '<path d="M6 18V6M6 18h12"/><path d="M6 18l7.5-7.5"/><path d="M4 8l2-2 2 2M16 16l2 2-2 2"/>',
+  edges: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>',
+  upload: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4h6v3"/>',
+  play: '<path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/>',
+  pause: '<rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/>',
+  home: '<path d="M4 11l8-7 8 7"/><path d="M6.5 9.5V20h11V9.5"/>',
+  flip: '<path d="M12 3v18"/><path d="M8 7L4 12l4 5M16 7l4 5-4 5"/>',
+  spin: '<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 15.5"/><path d="M4 20.5v-5h5"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4 17v1.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V17"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  rotAxis: '<path d="M12 3v18"/><path d="M5 12a7 3 0 0 0 14 0" /><path d="M16.5 14.6l2.5-2.6.6 3.4"/>',
+  linAxis: '<path d="M4 12h16"/><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  bug: '<rect x="8" y="7.5" width="8" height="12" rx="4"/><path d="M12 11v8.5M4 13.5h4M16 13.5h4M5 8.5l3 1.5M19 8.5l-3 1.5M5 19l3-2M19 19l-3-2M10 7.5L9 4.5M14 7.5l1-3"/>',
+  message: '<path d="M4 5.5h16v10.5H10l-6 4.5z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  github: '<path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.5a3 3 0 0 0-.9-2.4c3-.3 6.1-1.5 6.1-6.6a5.2 5.2 0 0 0-1.4-3.6 4.8 4.8 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a12.7 12.7 0 0 0-6.6 0C5.8 1 4.7 1.3 4.7 1.3a4.8 4.8 0 0 0-.1 3.6A5.2 5.2 0 0 0 3.2 8.5c0 5.1 3.1 6.3 6.1 6.6a3 3 0 0 0-.9 2.3V21"/>',
+  mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>',
+};
+function svgIcon(name) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+}
+function iconEl(name) { const s = document.createElement('span'); s.style.display = 'contents'; s.innerHTML = svgIcon(name); return s; }
+
+// ── Formato y nombres ROS ──────────────────────────────────────────
+function num(x, d = 6) {
+  if (!isFinite(x) || Math.abs(x) < Math.pow(10, -d) / 2) return '0';
+  let s = x.toFixed(d);
+  if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return s === '-0' ? '0' : s;
+}
+function sci(x) {
+  if (!isFinite(x) || Math.abs(x) < 1e-15) return '0';
+  const a = Math.abs(x);
+  if (a >= 1e-3 && a < 1e4) return num(x, 9);
+  return x.toExponential(6).replace(/\.?0+e/, 'e');
+}
+const fmtDeg = (r) => `${(r / DEG).toFixed(1)}°`;
+const fmtMM = (m) => `${(m * 1000).toFixed(1)} mm`;
+function fmtMass(kg) {
+  if (kg >= 1) return `${kg.toFixed(3)} kg`;
+  return `${(kg * 1000).toFixed(kg < 0.01 ? 2 : 1)} g`;
+}
+function rosName(s, fallback = 'pieza') {
+  let n = String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if (!n) n = fallback;
+  if (!/^[a-z]/.test(n)) n = `${fallback}_${n}`;
+  return n.slice(0, 60);
+}
+function uniqueName(base, taken) {
+  let n = base, i = 2;
+  while (taken.has(n)) n = `${base}_${i++}`;
+  return n;
+}
+function escXml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+// ── Álgebra ────────────────────────────────────────────────────────
+const V3 = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const ONE = V3(1, 1, 1);
+const EX = V3(1, 0, 0), EY = V3(0, 1, 0), EZ = V3(0, 0, 1);
+const AXV = { x: EX, y: EY, z: EZ };
+const M4 = () => new THREE.Matrix4();
+const inv = (m) => m.clone().invert();
+const mul = (...ms) => ms.reduce((a, b) => a.multiply(b), M4());
+const T4 = (x, y, z) => M4().makeTranslation(x, y, z);
+function compose(p, q) { return M4().compose(p, q, ONE); }
+function decompose(m) { const p = V3(), q = new THREE.Quaternion(), s = V3(); m.decompose(p, q, s); return { p, q, s }; }
+
+// Marco ortonormal con Z dado; X elegido de forma determinista (eje del mundo menos alineado).
+function frameFromZ(origin, zIn) {
+  const z = zIn.clone().normalize();
+  let ref = EX;
+  if (Math.abs(z.dot(EX)) > 0.9) ref = EY;
+  const x = ref.clone().sub(z.clone().multiplyScalar(ref.dot(z))).normalize();
+  const y = z.clone().cross(x);
+  const m = M4().makeBasis(x, y, z);
+  m.setPosition(origin);
+  return m;
+}
+function rot3(m) {
+  const e = m.elements;
+  return [[e[0], e[4], e[8]], [e[1], e[5], e[9]], [e[2], e[6], e[10]]];
+}
+function rpyOf(m) {
+  const r = M4().extractRotation(m);
+  const e = new THREE.Euler().setFromRotationMatrix(r, 'ZYX');
+  return [e.x, e.y, e.z];
+}
+function matMul3(A, B) {
+  const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) C[i][j] += A[i][k] * B[k][j];
+  return C;
+}
+const tr3 = (A) => [[A[0][0], A[1][0], A[2][0]], [A[0][1], A[1][1], A[2][1]], [A[0][2], A[1][2], A[2][2]]];
+
+// Eigen-descomposición de una matriz simétrica 3×3 (Jacobi). Valores ascendentes.
+function eigSym3(A) {
+  const a = A.map((r) => r.slice());
+  const v = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let sweep = 0; sweep < 60; sweep++) {
+    const off = Math.abs(a[0][1]) + Math.abs(a[0][2]) + Math.abs(a[1][2]);
+    const dia = Math.abs(a[0][0]) + Math.abs(a[1][1]) + Math.abs(a[2][2]);
+    if (off <= 1e-15 * dia || off < 1e-300) break;
+    for (const [p, q] of [[0, 1], [0, 2], [1, 2]]) {
+      if (Math.abs(a[p][q]) < 1e-300) continue;
+      const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+      const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < 3; k++) { const kp = a[k][p], kq = a[k][q]; a[k][p] = c * kp - s * kq; a[k][q] = s * kp + c * kq; }
+      for (let k = 0; k < 3; k++) { const pk = a[p][k], qk = a[q][k]; a[p][k] = c * pk - s * qk; a[q][k] = s * pk + c * qk; }
+      for (let k = 0; k < 3; k++) { const kp = v[k][p], kq = v[k][q]; v[k][p] = c * kp - s * kq; v[k][q] = s * kp + c * kq; }
+    }
+  }
+  const vals = [a[0][0], a[1][1], a[2][2]];
+  const order = [0, 1, 2].sort((i, j) => vals[i] - vals[j]);
+  return { values: order.map((i) => vals[i]), vectors: order.map((i) => V3(v[0][i], v[1][i], v[2][i]).normalize()) };
+}
+
+// Ajuste algebraico de círculo 2D. Devuelve {cx, cy, r, res} (res = error rms relativo).
+function fitCircle2D(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return null;
+  let mx = 0, my = 0;
+  for (let i = 0; i < n; i++) { mx += xs[i]; my += ys[i]; }
+  mx /= n; my /= n;
+  let Suu = 0, Svv = 0, Suv = 0, Suuu = 0, Svvv = 0, Suvv = 0, Svuu = 0;
+  for (let i = 0; i < n; i++) {
+    const u = xs[i] - mx, v = ys[i] - my;
+    Suu += u * u; Svv += v * v; Suv += u * v;
+    Suuu += u * u * u; Svvv += v * v * v; Suvv += u * v * v; Svuu += v * u * u;
+  }
+  const det = Suu * Svv - Suv * Suv;
+  const scale = (Suu + Svv) * (Suu + Svv);
+  if (!(Math.abs(det) > 1e-12 * scale)) return null;
+  const bu = 0.5 * (Suuu + Suvv), bv = 0.5 * (Svvv + Svuu);
+  const uc = (Svv * bu - Suv * bv) / det;
+  const vc = (Suu * bv - Suv * bu) / det;
+  const r = Math.sqrt(uc * uc + vc * vc + (Suu + Svv) / n);
+  const cx = uc + mx, cy = vc + my;
+  let err = 0;
+  for (let i = 0; i < n; i++) { const d = Math.hypot(xs[i] - cx, ys[i] - cy) - r; err += d * d; }
+  return { cx, cy, r, res: Math.sqrt(err / n) / r };
+}
+
+// ── Análisis de malla ──────────────────────────────────────────────
+// Suelda vértices, encuentra aristas "de forma" (bordes vivos), calcula volumen,
+// centro de masa y tensor de covarianza (para la inercia). Todo en unidades del archivo.
+const FEATURE_COS = Math.cos(35 * DEG);
+
+function analyzeGeometry(geo) {
+  const src = geo.getAttribute('position');
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', src.clone());
+  g.computeBoundingBox();
+  const bb = g.boundingBox.clone();
+  const size = bb.getSize(V3());
+  const diag = size.length() || 1;
+  const maxAbs = Math.max(Math.abs(bb.min.x), Math.abs(bb.min.y), Math.abs(bb.min.z), Math.abs(bb.max.x), Math.abs(bb.max.y), Math.abs(bb.max.z), 1e-9);
+  const tol = Math.max(diag * 1e-6, maxAbs / 1e9);
+  const merged = mergeVertices(g, tol);
+  const P = merged.getAttribute('position').array;
+  const I = merged.index.array;
+  const nV = P.length / 3, nT = I.length / 3;
+  const FN = new Float32Array(nT * 3), FA = new Float32Array(nT);
+
+  // Propiedades de masa (desplazadas al centro de la caja para estabilidad numérica).
+  const o = bb.getCenter(V3());
+  let V = 0, sx = 0, sy = 0, sz = 0, area = 0;
+  let cxx = 0, cyy = 0, czz = 0, cxy = 0, cxz = 0, cyz = 0;
+  for (let t = 0; t < nT; t++) {
+    const ia = I[3 * t] * 3, ib = I[3 * t + 1] * 3, ic = I[3 * t + 2] * 3;
+    const ax = P[ia] - o.x, ay = P[ia + 1] - o.y, az = P[ia + 2] - o.z;
+    const bx = P[ib] - o.x, by = P[ib + 1] - o.y, bz = P[ib + 2] - o.z;
+    const cx = P[ic] - o.x, cy = P[ic + 1] - o.y, cz = P[ic + 2] - o.z;
+    // normal
+    const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz);
+    FA[t] = len / 2; area += len / 2;
+    if (len > 0) { nx /= len; ny /= len; nz /= len; }
+    FN[3 * t] = nx; FN[3 * t + 1] = ny; FN[3 * t + 2] = nz;
+    // tetraedro con vértice en el origen
+    const det = ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx);
+    V += det / 6;
+    const tx = ax + bx + cx, ty = ay + by + cy, tz = az + bz + cz;
+    sx += det * tx; sy += det * ty; sz += det * tz;
+    const k = det / 120;
+    cxx += k * (ax * ax + bx * bx + cx * cx + tx * tx);
+    cyy += k * (ay * ay + by * by + cy * cy + ty * ty);
+    czz += k * (az * az + bz * bz + cz * cz + tz * tz);
+    cxy += k * (ax * ay + bx * by + cx * cy + tx * ty);
+    cxz += k * (ax * az + bx * bz + cx * cz + tx * tz);
+    cyz += k * (ay * az + by * bz + cy * cz + ty * tz);
+  }
+  let com = o.clone(), Ccom = [0, 0, 0, 0, 0, 0];
+  if (Math.abs(V) > 1e-18) {
+    const gx = sx / (24 * V), gy = sy / (24 * V), gz = sz / (24 * V);
+    com = V3(gx + o.x, gy + o.y, gz + o.z);
+    Ccom = [cxx - V * gx * gx, cyy - V * gy * gy, czz - V * gz * gz, cxy - V * gx * gy, cxz - V * gx * gz, cyz - V * gy * gz];
+  }
+
+  // Aristas
+  const edgeMap = new Map();
+  const EA = [], EB = [], EF0 = [], EF1 = [];
+  const TE = new Int32Array(nT * 3);
+  for (let t = 0; t < nT; t++) {
+    const i0 = I[3 * t], i1 = I[3 * t + 1], i2 = I[3 * t + 2];
+    if (i0 === i1 || i1 === i2 || i0 === i2) { TE[3 * t] = TE[3 * t + 1] = TE[3 * t + 2] = -1; continue; } // triángulo degenerado
+    for (let k = 0; k < 3; k++) {
+      const u = I[3 * t + k], v = I[3 * t + ((k + 1) % 3)];
+      const a = u < v ? u : v, b = u < v ? v : u;
+      const key = a * nV + b;
+      let e = edgeMap.get(key);
+      if (e === undefined) { e = EA.length; edgeMap.set(key, e); EA.push(a); EB.push(b); EF0.push(t); EF1.push(-1); }
+      else if (EF1[e] === -1) EF1[e] = t;
+      else EF1[e] = -2;
+      TE[3 * t + k] = e;
+    }
+  }
+  const nE = EA.length;
+  const isFeat = new Uint8Array(nE);
+  const featE = [];
+  let open = 0, nonManifold = 0;
+  for (let e = 0; e < nE; e++) {
+    const f0 = EF0[e], f1 = EF1[e];
+    let feat = false;
+    if (f1 === -1) { feat = true; open++; }
+    else if (f1 === -2) { feat = true; nonManifold++; }
+    else if (FA[f0] > 0 && FA[f1] > 0) {
+      const d = FN[3 * f0] * FN[3 * f1] + FN[3 * f0 + 1] * FN[3 * f1 + 1] + FN[3 * f0 + 2] * FN[3 * f1 + 2];
+      feat = d < FEATURE_COS;
+    }
+    if (feat) { isFeat[e] = 1; featE.push(e); }
+  }
+  const featSeg = new Float32Array(featE.length * 6);
+  const vAdj = new Map();
+  featE.forEach((e, i) => {
+    const a = EA[e], b = EB[e];
+    featSeg.set([P[3 * a], P[3 * a + 1], P[3 * a + 2], P[3 * b], P[3 * b + 1], P[3 * b + 2]], i * 6);
+    for (const vtx of [a, b]) { let l = vAdj.get(vtx); if (!l) vAdj.set(vtx, (l = [])); l.push(e); }
+  });
+
+  return {
+    P, I, nV, nT, FN, FA, TE,
+    EA: Int32Array.from(EA), EB: Int32Array.from(EB), EF0: Int32Array.from(EF0), EF1: Int32Array.from(EF1),
+    isFeat, featE: Int32Array.from(featE), featSeg, vAdj,
+    watertight: open === 0 && nonManifold === 0, open, nonManifold,
+    V, com, Ccom, area, bbox: bb, size, diag,
+    regionOf: new Int32Array(nT).fill(-1), regions: [], loopCache: new Map(),
+  };
+}
+
+// Región suave (caras conectadas sin bordes vivos): plano, cilindro u otra.
+function regionFor(an, t0) {
+  const known = an.regionOf[t0];
+  if (known >= 0) return an.regions[known];
+  const id = an.regions.length;
+  const stack = [t0];
+  an.regionOf[t0] = id;
+  const tris = [];
+  while (stack.length) {
+    const f = stack.pop();
+    tris.push(f);
+    if (tris.length > 400000) break;
+    for (let k = 0; k < 3; k++) {
+      const e = an.TE[3 * f + k];
+      if (e < 0 || an.isFeat[e]) continue;
+      const other = an.EF0[e] === f ? an.EF1[e] : an.EF0[e];
+      if (other >= 0 && an.regionOf[other] < 0) { an.regionOf[other] = id; stack.push(other); }
+    }
+  }
+  const { P, I, FN, FA } = an;
+  let A = 0;
+  const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  const nsum = V3(), cen = V3();
+  for (const f of tris) {
+    const a = FA[f];
+    if (!(a > 0)) continue;
+    const n = [FN[3 * f], FN[3 * f + 1], FN[3 * f + 2]];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) M[i][j] += a * n[i] * n[j];
+    nsum.x += a * n[0]; nsum.y += a * n[1]; nsum.z += a * n[2];
+    const i0 = I[3 * f] * 3, i1 = I[3 * f + 1] * 3, i2 = I[3 * f + 2] * 3;
+    cen.x += a * (P[i0] + P[i1] + P[i2]) / 3;
+    cen.y += a * (P[i0 + 1] + P[i1 + 1] + P[i2 + 1]) / 3;
+    cen.z += a * (P[i0 + 2] + P[i1 + 2] + P[i2 + 2]) / 3;
+    A += a;
+  }
+  let res = { type: 'other' };
+  if (A > 0) {
+    cen.multiplyScalar(1 / A);
+    const ev = eigSym3(M);
+    const trc = ev.values[0] + ev.values[1] + ev.values[2];
+    if (ev.values[1] / trc < 2e-4) {
+      res = { type: 'plane', normal: nsum.clone().normalize(), centroid: cen, area: A };
+    } else if (ev.values[0] / trc < 3e-3 && tris.length >= 6) {
+      const axis = ev.vectors[0].clone().normalize();
+      const u = Math.abs(axis.x) < 0.9 ? EX.clone() : EY.clone();
+      u.sub(axis.clone().multiplyScalar(u.dot(axis))).normalize();
+      const w = axis.clone().cross(u);
+      const seen = new Set(); const xs = [], ys = [];
+      let tmin = Infinity, tmax = -Infinity;
+      const d = V3();
+      for (const f of tris) for (let k = 0; k < 3; k++) {
+        const vi = I[3 * f + k];
+        if (seen.has(vi)) continue;
+        seen.add(vi);
+        d.set(P[3 * vi] - cen.x, P[3 * vi + 1] - cen.y, P[3 * vi + 2] - cen.z);
+        xs.push(d.dot(u)); ys.push(d.dot(w));
+        const t = d.dot(axis);
+        if (t < tmin) tmin = t; if (t > tmax) tmax = t;
+      }
+      const c = fitCircle2D(xs, ys);
+      if (c && c.res < 0.03 && c.r > 0) {
+        const center = cen.clone().addScaledVector(u, c.cx).addScaledVector(w, c.cy);
+        res = { type: 'cyl', axis, center, radius: c.r, tmin, tmax };
+      }
+    }
+  }
+  an.regions.push(res);
+  return res;
+}
+
+// Recorre una cadena de aristas vivas y, si forma un círculo o arco, devuelve su centro y eje.
+function loopFor(an, e0) {
+  if (an.loopCache.has(e0)) return an.loopCache.get(e0);
+  const { P, EA, EB, vAdj } = an;
+  const pt = (i) => V3(P[3 * i], P[3 * i + 1], P[3 * i + 2]);
+  const a0 = EA[e0], b0 = EB[e0];
+  const chain = [a0, b0], edges = [e0];
+  const visited = new Set(chain);
+  let closed = false;
+  const walk = (fromV, toV, startE, push) => {
+    let prevV = fromV, cur = toV, prevE = startE;
+    for (let step = 0; step < 6000; step++) {
+      const adj = vAdj.get(cur);
+      if (!adj) return false;
+      const d = pt(cur).sub(pt(prevV)).normalize();
+      let best = -1, bestDot = 0.3, bestV = -1;
+      for (const fe of adj) {
+        if (fe === prevE) continue;
+        const o = EA[fe] === cur ? EB[fe] : EA[fe];
+        const dd = pt(o).sub(pt(cur)).normalize().dot(d);
+        if (dd > bestDot) { bestDot = dd; best = fe; bestV = o; }
+      }
+      if (best < 0) return false;
+      if (push && bestV === chain[0]) { edges.push(best); return true; }
+      if (visited.has(bestV)) return false;
+      visited.add(bestV);
+      if (push) chain.push(bestV); else chain.unshift(bestV);
+      edges.push(best);
+      prevE = best; prevV = cur; cur = bestV;
+    }
+    return false;
+  };
+  closed = walk(a0, b0, e0, true);
+  if (!closed) walk(b0, a0, e0, false);
+
+  let result = null;
+  if (chain.length >= 5) {
+    const pts = chain.map(pt);
+    const c = V3(); pts.forEach((p) => c.add(p)); c.multiplyScalar(1 / pts.length);
+    const n = V3();
+    const m = closed ? pts.length : pts.length - 1;
+    for (let i = 0; i < m; i++) {
+      const p = pts[i].clone().sub(c), q = pts[(i + 1) % pts.length].clone().sub(c);
+      n.add(p.cross(q));
+    }
+    if (n.lengthSq() > 0) {
+      n.normalize();
+      let ext = 0, off = 0;
+      for (const p of pts) { const d = p.clone().sub(c); ext = Math.max(ext, d.length()); off = Math.max(off, Math.abs(d.dot(n))); }
+      if (off < 0.03 * ext + 1e-9) {
+        const u = frameFromZ(V3(), n);
+        const ux = V3().setFromMatrixColumn(u, 0), uy = V3().setFromMatrixColumn(u, 1);
+        const xs = [], ys = [];
+        for (const p of pts) { const d = p.clone().sub(c); xs.push(d.dot(ux)); ys.push(d.dot(uy)); }
+        const fit = fitCircle2D(xs, ys);
+        if (fit && fit.res < 0.025) {
+          // arco suficientemente largo
+          let span = 2 * Math.PI;
+          if (!closed) {
+            let acc = 0, prev = Math.atan2(ys[0] - fit.cy, xs[0] - fit.cx);
+            for (let i = 1; i < xs.length; i++) {
+              const ang = Math.atan2(ys[i] - fit.cy, xs[i] - fit.cx);
+              let da = ang - prev; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+              acc += da; prev = ang;
+            }
+            span = Math.abs(acc);
+          }
+          if (closed || span >= 100 * DEG) {
+            const center = c.clone().addScaledVector(ux, fit.cx).addScaledVector(uy, fit.cy);
+            // Orienta la normal hacia afuera de la cara plana que rodea el borde.
+            let s = 0;
+            for (const e of edges) {
+              let bestF = -1, bestA = 0;
+              for (const f of [an.EF0[e], an.EF1[e]]) {
+                if (f < 0) continue;
+                const d = Math.abs(an.FN[3 * f] * n.x + an.FN[3 * f + 1] * n.y + an.FN[3 * f + 2] * n.z);
+                if (d > bestA) { bestA = d; bestF = f; }
+              }
+              if (bestF >= 0 && bestA > 0.7) s += an.FN[3 * bestF] * n.x + an.FN[3 * bestF + 1] * n.y + an.FN[3 * bestF + 2] * n.z;
+            }
+            if (s < 0) n.negate();
+            result = { center, normal: n, radius: fit.r, closed, span };
+          }
+        }
+      }
+    }
+  }
+  for (const e of edges) an.loopCache.set(e, result);
+  return result;
+}
+
+function nearestFeatureEdge(an, p, tol) {
+  const S = an.featSeg;
+  let best = -1, bestD = tol * tol;
+  const px = p.x, py = p.y, pz = p.z;
+  for (let i = 0, n = an.featE.length; i < n; i++) {
+    const o = i * 6;
+    const ax = S[o], ay = S[o + 1], az = S[o + 2];
+    const dx = S[o + 3] - ax, dy = S[o + 4] - ay, dz = S[o + 5] - az;
+    const L = dx * dx + dy * dy + dz * dz;
+    let t = L > 0 ? ((px - ax) * dx + (py - ay) * dy + (pz - az) * dz) / L : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const qx = ax + t * dx - px, qy = ay + t * dy - py, qz = az + t * dz - pz;
+    const d = qx * qx + qy * qy + qz * qz;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best >= 0 ? an.featE[best] : -1;
+}
+
+// ── Lectura / escritura de STL ─────────────────────────────────────
+function isBinarySTL(buf) {
+  if (buf.byteLength < 84) return false;
+  const n = new DataView(buf).getUint32(80, true);
+  return 84 + n * 50 === buf.byteLength;
+}
+function geometryToBinarySTL(geo) {
+  const mesh = new THREE.Mesh(geo);
+  mesh.updateMatrixWorld(true);
+  const dv = new STLExporter().parse(mesh, { binary: true });
+  return dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength);
+}
+function parseSTL(buf) {
+  const geo = new STLLoader().parse(buf);
+  const pos = geo.getAttribute('position');
+  if (!pos || pos.count < 3) throw new Error('STL vacío');
+  if (!geo.getAttribute('normal')) geo.computeVertexNormals();
+  const binary = isBinarySTL(buf) ? buf : geometryToBinarySTL(geo);
+  // Quita atributos extra de color que algunos exportadores ponen.
+  if (geo.getAttribute('color')) geo.deleteAttribute('color');
+  return { geo, binary };
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  02 · estado, escena 3D, piezas, uniones y cinemática
+// ════════════════════════════════════════════════════════════════════
+
+const S = {
+  robotName: 'mi_robot',
+  parts: new Map(),      // id → pieza
+  joints: new Map(),     // id → unión
+  parentOf: new Map(),   // id pieza → unión donde es hija
+  childrenOf: new Map(), // id pieza → [uniones donde es padre]
+  baseId: null,
+  sel: null,             // { type: 'part'|'joint', id }
+  tool: 'select',
+  snapMode: 'auto',
+  jt: null,              // estado de la herramienta de unión
+  newUnit: 0.001,
+  showFrames: true,
+  showEdges: true,
+  isExample: false,
+  seq: 1,
+  colorIdx: 0,
+  preview: null,         // { jointId, type, axis, t0 } vista previa al pasar el mouse por un DOF
+  play: null,            // { jointId, t0 } animación de prueba
+  hoverPart: null,
+  lastJointMode: 'assemble',
+};
+const pool = new Map(); // id → { geo, an, stl, fileName, saved }
+let needsRender = true;
+const nid = (p) => `${p}${S.seq++}`;
+
+// ── Renderizador ───────────────────────────────────────────────────
+const vpEl = $('#viewport');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x000000, 0);
+vpEl.innerHTML = '';
+vpEl.append(renderer.domElement);
+renderer.domElement.setAttribute('tabindex', '0');
+renderer.domElement.setAttribute('aria-label', 'Visor 3D del robot');
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9099, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(2, -1.5, 4);
+scene.add(sun);
+
+const camera = new THREE.PerspectiveCamera(40, 1, 0.001, 200);
+camera.up.set(0, 0, 1);
+camera.position.set(0.55, 0.65, 0.45);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.12;
+controls.target.set(0, 0, 0.12);
+controls.addEventListener('change', () => { needsRender = true; });
+
+// Rejilla en el plano XY (Z arriba, convención ROS)
+const gridG = new THREE.Group();
+scene.add(gridG);
+let gridSize = 0;
+function buildGrid(size) {
+  gridG.clear();
+  gridSize = size;
+  const minor = new THREE.GridHelper(size, Math.round(size / (size > 2.5 ? 0.1 : 0.01)));
+  const major = new THREE.GridHelper(size, Math.round(size / (size > 2.5 ? 1 : 0.1)));
+  for (const g of [minor, major]) { g.rotation.x = Math.PI / 2; g.material.transparent = true; g.material.depthWrite = false; }
+  minor.material.opacity = 0.55;
+  minor.renderOrder = -2; major.renderOrder = -1;
+  gridG.add(minor, major);
+  gridG.userData = { minor, major };
+  // ejes del origen (base_link)
+  const ax = new THREE.Group();
+  const mk = (dir, col) => {
+    const g = new THREE.BufferGeometry().setFromPoints([V3(), dir.clone().multiplyScalar(Math.min(0.1, size / 8))]);
+    return new THREE.Line(g, new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.9 }));
+  };
+  ax.add(mk(EX, cssVar('--x')), mk(EY, cssVar('--y')), mk(EZ, cssVar('--z')));
+  ax.children.forEach((c) => { c.renderOrder = 5; });
+  gridG.add(ax);
+  applyGridColors();
+}
+function applyGridColors() {
+  const { minor, major } = gridG.userData || {};
+  if (!minor) return;
+  minor.material.color.set(cssVar('--grid-minor'));
+  major.material.color.set(cssVar('--grid-major'));
+  minor.material.vertexColors = false; major.material.vertexColors = false;
+  minor.material.needsUpdate = true; major.material.needsUpdate = true;
+}
+buildGrid(1);
+
+// Mini gizmo de ejes en la esquina
+const gizScene = new THREE.Scene();
+const gizCam = new THREE.OrthographicCamera(-1.5, 1.5, 1.5, -1.5, 0.1, 10);
+function labelSprite(text, color) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = color; x.font = '700 40px "Saira Semi Condensed", sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text, 32, 34);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  sp.scale.set(0.55, 0.55, 1);
+  return sp;
+}
+function buildGizmo() {
+  gizScene.clear();
+  for (const [dir, key, l] of [[EX, '--x', 'X'], [EY, '--y', 'Y'], [EZ, '--z', 'Z']]) {
+    const col = cssVar(key);
+    const g = new THREE.BufferGeometry().setFromPoints([V3(), dir.clone()]);
+    gizScene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: col })));
+    const s = labelSprite(l, col); s.position.copy(dir.clone().multiplyScalar(1.3)); gizScene.add(s);
+  }
+}
+buildGizmo();
+
+// ── Piezas ─────────────────────────────────────────────────────────
+function poolAdd(id, buf, fileName) {
+  const { geo, binary } = parseSTL(buf);
+  geo.computeBoundingBox();
+  const an = analyzeGeometry(geo);
+  if (BVH) { try { geo.computeBoundsTree(); } catch (e) { /* sin BVH */ } }
+  pool.set(id, { geo, an, stl: binary, fileName, saved: false });
+  return pool.get(id);
+}
+
+function makePartMesh(p) {
+  const e = pool.get(p.id);
+  const mat = new THREE.MeshStandardMaterial({ color: p.color, metalness: 0.05, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  const mesh = new THREE.Mesh(e.geo, mat);
+  mesh.matrixAutoUpdate = false;
+  mesh.userData.partId = p.id;
+  const eg = new THREE.BufferGeometry();
+  eg.setAttribute('position', new THREE.BufferAttribute(e.an.featSeg, 3));
+  const edges = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: cssVar('--edge'), transparent: true, opacity: 0.45 }));
+  edges.raycast = () => {};
+  edges.matrixAutoUpdate = false;
+  mesh.add(edges);
+  p.mesh = mesh; p.edges = edges;
+  scene.add(mesh);
+  styleMesh(p);
+}
+
+function newPartObject(id, props) {
+  return Object.assign({
+    id, name: 'pieza', fileName: '', unit: 0.001, rest: M4(), color: PART_COLORS[0], mat: 'pla',
+    density: 1000, infill: 20, walls: 1.2, massOverride: null, mesh: null, edges: null,
+  }, props);
+}
+
+function styleMesh(p) {
+  if (!p.mesh) return;
+  const m = MATERIALS[p.mat] || MATERIALS.pla;
+  const mat = p.mesh.material;
+  mat.color.set(p.color);
+  mat.metalness = m.metal ? 0.75 : 0.04;
+  mat.roughness = m.metal ? 0.32 : 0.58;
+  const sel = S.sel && S.sel.type === 'part' && S.sel.id === p.id;
+  const picked = S.jt && S.jt.first && S.jt.first.partId === p.id;
+  const hov = S.hoverPart === p.id && !sel;
+  const accent = new THREE.Color(cssVar('--accent-fill'));
+  mat.emissive.copy(sel || picked ? accent : hov ? accent : new THREE.Color(0x000000));
+  mat.emissiveIntensity = sel || picked ? 0.28 : hov ? 0.12 : 0;
+  p.edges.visible = S.showEdges || sel;
+  p.edges.material.color.set(sel || picked ? cssVar('--accent-fill') : cssVar('--edge'));
+  p.edges.material.opacity = sel || picked ? 1 : 0.45;
+  needsRender = true;
+}
+const styleAll = () => S.parts.forEach(styleMesh);
+
+function removePartMesh(p) {
+  if (p.mesh) { scene.remove(p.mesh); p.mesh.material.dispose(); p.edges.geometry.dispose(); p.edges.material.dispose(); }
+  p.mesh = null;
+}
+
+async function addPartFromSTL(buf, fileName, unit, extra = {}) {
+  const id = nid('p');
+  const e = poolAdd(id, buf, fileName);
+  const taken = new Set([...S.parts.values()].map((p) => p.name));
+  const name = uniqueName(rosName(extra.name || fileName.replace(/\.stl$/i, ''), 'pieza'), taken);
+  const color = extra.color || PART_COLORS[S.colorIdx++ % PART_COLORS.length];
+  const p = newPartObject(id, { name, fileName, unit, color, mat: extra.mat || 'pla' });
+  S.parts.set(id, p);
+  makePartMesh(p);
+  if (e.an.nT > 600000) toast(`${fileName} tiene ${e.an.nT.toLocaleString('es-MX')} triángulos; RViz irá lento. Considera simplificarlo.`, 'warn');
+  return p;
+}
+
+const rawMatrix = (p, W) => (W || worldOf(p)).clone().multiply(M4().makeScale(p.unit, p.unit, p.unit));
+function worldBox(p, W) {
+  const bb = pool.get(p.id).an.bbox.clone();
+  return bb.applyMatrix4(rawMatrix(p, W || p.rest));
+}
+function localCenter(p) { return pool.get(p.id).an.bbox.getCenter(V3()).multiplyScalar(p.unit); }
+
+// ── Índices de jerarquía ───────────────────────────────────────────
+function rebuildIndex() {
+  S.parentOf.clear(); S.childrenOf.clear();
+  for (const j of S.joints.values()) {
+    S.parentOf.set(j.child, j);
+    if (!S.childrenOf.has(j.parent)) S.childrenOf.set(j.parent, []);
+    S.childrenOf.get(j.parent).push(j);
+  }
+  if (S.baseId && !S.parts.has(S.baseId)) S.baseId = null;
+  if (S.baseId) S.baseId = rootOf(S.baseId);
+  if (!S.baseId && S.parts.size) S.baseId = largestRoot();
+}
+const isRoot = (id) => !S.parentOf.has(id);
+function rootOf(id) { let c = id, guard = 0; while (S.parentOf.has(c) && guard++ < 10000) c = S.parentOf.get(c).parent; return c; }
+function subtree(id) {
+  const out = [id];
+  for (let i = 0; i < out.length; i++) for (const j of S.childrenOf.get(out[i]) || []) out.push(j.child);
+  return out;
+}
+const isAncestor = (a, b) => { let c = b; while (S.parentOf.has(c)) { c = S.parentOf.get(c).parent; if (c === a) return true; } return false; };
+// Base sugerida: la cadena más grande; si empatan, la pieza más baja y con mayor huella.
+function largestRoot() {
+  let best = null, bk = null;
+  for (const id of S.parts.keys()) {
+    if (!isRoot(id)) continue;
+    const p = S.parts.get(id);
+    const bb = worldBox(p), sz = bb.getSize(V3());
+    const k = { n: subtree(id).length, z: bb.min.z, a: sz.x * sz.y };
+    const better = !bk || k.n > bk.n || (k.n === bk.n && (k.z < bk.z - 0.001 || (Math.abs(k.z - bk.z) <= 0.001 && k.a > bk.a)));
+    if (better) { best = id; bk = k; }
+  }
+  return best;
+}
+function applySubtreeDelta(id, D) { for (const pid of subtree(id)) { const p = S.parts.get(pid); p.rest.premultiply(D); } }
+function setSubtreeRest(id, newRest) {
+  const p = S.parts.get(id);
+  const D = newRest.clone().multiply(inv(p.rest));
+  applySubtreeDelta(id, D);
+}
+
+// ── Uniones ────────────────────────────────────────────────────────
+function newJoint(props) {
+  return Object.assign({
+    id: nid('j'), name: 'union', parent: null, child: null,
+    type: 'revolute', axis: 'z', sign: 1,
+    framePos: V3(), holeQuat: new THREE.Quaternion(), worldQuat: new THREE.Quaternion(), spin: 0, frameMode: 'hole',
+    rot: { lo: -90 * DEG, hi: 90 * DEG, effort: 1.0, vel: 6.0, act: 'mg996r' },
+    lin: { lo: 0, hi: 0.05, effort: 40, vel: 0.3, act: 'banda' },
+    q: 0, home: 0, mate: null, vis: null,
+  }, props);
+}
+const isLin = (j) => j.type === 'prismatic';
+const lim = (j) => (isLin(j) ? j.lin : j.rot);
+function frameQuat(j) {
+  if (j.frameMode === 'world') return j.worldQuat.clone();
+  return j.holeQuat.clone().multiply(new THREE.Quaternion().setFromAxisAngle(EZ, j.spin * DEG));
+}
+const frameMat = (j) => compose(j.framePos, frameQuat(j));
+const axisVec = (j) => AXV[j.axis].clone().multiplyScalar(j.sign);
+function motion(j, q) {
+  if (j.type === 'revolute' || j.type === 'continuous') return M4().makeRotationAxis(axisVec(j), q);
+  if (j.type === 'prismatic') { const v = axisVec(j).multiplyScalar(q); return T4(v.x, v.y, v.z); }
+  return M4();
+}
+function qRange(j) {
+  if (j.type === 'continuous') return [-Math.PI, Math.PI];
+  if (j.type === 'fixed') return [0, 0];
+  const l = lim(j); return [Math.min(l.lo, l.hi), Math.max(l.lo, l.hi)];
+}
+
+// Valor efectivo de cada unión en este cuadro (incluye vista previa y animación).
+let clock = 0;
+function effJoint(j) {
+  if (S.preview && S.preview.jointId === j.id) return Object.assign({}, j, { type: S.preview.type, axis: S.preview.axis, sign: S.preview.sign ?? j.sign });
+  return j;
+}
+function effQ(j) {
+  if (S.preview && S.preview.jointId === j.id) {
+    const t = clock - S.preview.t0;
+    const amp = S.preview.type === 'prismatic' ? previewTravel(j) : 32 * DEG;
+    const base = S.preview.type === j.type && S.preview.axis === j.axis ? j.q : 0;
+    return base + amp * Math.sin(t * Math.PI * 2 / 1.5);
+  }
+  if (S.play && S.play.jointId === j.id) return playQ(j);
+  return j.q;
+}
+function playQ(j) {
+  const t = clock - S.play.t0;
+  if (j.type === 'continuous') return ((j.q + t * 1.6 + Math.PI) % (2 * Math.PI)) - Math.PI;
+  const [lo, hi] = qRange(j);
+  const mid = (lo + hi) / 2, amp = (hi - lo) / 2;
+  const phase = Math.asin(clamp((j.q - mid) / (amp || 1), -1, 1));
+  return mid + amp * Math.sin(phase + t * Math.PI * 2 / 3.2);
+}
+function previewTravel(j) {
+  const an = pool.get(j.child)?.an; const p = S.parts.get(j.child);
+  return an ? clamp(an.diag * p.unit * 0.18, 0.004, 0.08) : 0.02;
+}
+
+// Cinemática directa: transformación mundial de cada pieza.
+function computeWorld(useAnim = true, qOf = null) {
+  const W = new Map();
+  const get = (id) => {
+    let m = W.get(id);
+    if (m) return m;
+    const p = S.parts.get(id);
+    const j = S.parentOf.get(id);
+    if (!j) m = p.rest.clone();
+    else {
+      const a = S.parts.get(j.parent);
+      const je = useAnim ? effJoint(j) : j;
+      const q = qOf ? qOf(j) : useAnim ? effQ(j) : j.q;
+      const F = frameMat(j);
+      m = get(a.id).clone().multiply(F).multiply(motion(je, q)).multiply(inv(F)).multiply(inv(a.rest)).multiply(p.rest);
+    }
+    W.set(id, m);
+    return m;
+  };
+  for (const id of S.parts.keys()) get(id);
+  return W;
+}
+let WORLD = new Map();
+const worldOf = (p) => WORLD.get(p.id) || p.rest;
+
+// ── Visual de las uniones ──────────────────────────────────────────
+function jmat(color, opacity = 1) {
+  return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, depthWrite: false });
+}
+const shaftGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.78, 8).translate(0, 0.39, 0);
+const headGeo = new THREE.ConeGeometry(0.065, 0.2, 14).translate(0, 0.88, 0);
+function arrowMesh(color, opacity) {
+  const g = new THREE.Group();
+  const m = jmat(color, opacity);
+  g.add(new THREE.Mesh(shaftGeo, m), new THREE.Mesh(headGeo, m));
+  return g;
+}
+function orientY(obj, dir) { obj.quaternion.setFromUnitVectors(EY, dir.clone().normalize()); }
+
+function buildJointVis(j) {
+  removeJointVis(j);
+  const g = new THREE.Group();
+  g.userData.jointId = j.id;
+  const triad = new THREE.Group();
+  for (const [d, key] of [[EX, '--x'], [EY, '--y'], [EZ, '--z']]) {
+    const a = arrowMesh(cssVar(key), 0.95); orientY(a, d); triad.add(a);
+  }
+  g.add(triad);
+  const ind = new THREE.Group();
+  const je = effJoint(j);
+  const acc = cssVar('--accent-fill');
+  if (je.type === 'revolute' || je.type === 'continuous') {
+    const arc = je.type === 'continuous' ? Math.PI * 1.75 : Math.PI * 1.4;
+    const tor = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.035, 8, 48, arc), jmat(acc));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 14), jmat(acc));
+    cone.position.set(0.52 * Math.cos(arc), 0.52 * Math.sin(arc), 0);
+    cone.quaternion.setFromUnitVectors(EY, V3(-Math.sin(arc), Math.cos(arc), 0));
+    ind.add(tor, cone);
+    ind.quaternion.setFromUnitVectors(EZ, axisVec(je));
+  } else if (je.type === 'prismatic') {
+    const m = jmat(acc);
+    const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.1, 10), m);
+    const c1 = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.24, 14), m); c1.position.y = 1.17;
+    const c2 = c1.clone(); c2.position.y = -1.17; c2.rotation.z = Math.PI;
+    ind.add(sh, c1, c2);
+    ind.quaternion.setFromUnitVectors(EY, axisVec(je));
+  } else {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.22), jmat(cssVar('--muted')));
+    ind.add(box);
+  }
+  g.add(ind);
+  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), jmat(acc));
+  g.add(hub);
+  const hit = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
+  hit.userData.jointId = j.id;
+  g.add(hit);
+  g.userData.hit = hit;
+  g.traverse((o) => { o.renderOrder = 30; });
+  g.userData.visType = `${je.type}/${je.axis}/${je.sign}`;
+  j.vis = g;
+  scene.add(g);
+  needsRender = true;
+}
+function removeJointVis(j) {
+  if (!j.vis) return;
+  scene.remove(j.vis);
+  j.vis.traverse((o) => { if (o.material) o.material.dispose(); if (o.geometry && o.geometry !== shaftGeo && o.geometry !== headGeo) o.geometry.dispose(); });
+  j.vis = null;
+}
+
+// ── Superposición del "snap" ───────────────────────────────────────
+function makeSnapGroup(opacity) {
+  const g = new THREE.Group();
+  g.visible = false;
+  const acc = cssVar('--accent-fill');
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.04, 6, 64), jmat(acc, opacity));
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), jmat(acc, opacity));
+  const arrow = new THREE.Group();
+  const am = jmat(acc, opacity);
+  const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8).translate(0, 0.4, 0), am);
+  const hd = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 14).translate(0, 0.89, 0), am);
+  arrow.add(sh, hd);
+  arrow.quaternion.setFromUnitVectors(EY, EZ);
+  const disc = new THREE.Mesh(new THREE.RingGeometry(0.6, 1, 32), jmat(acc, opacity * 0.5));
+  g.add(ring, dot, arrow, disc);
+  g.userData = { ring, dot, arrow, disc, r: 0 };
+  g.traverse((o) => { o.renderOrder = 40; });
+  scene.add(g);
+  return g;
+}
+const snapG = makeSnapGroup(1);
+const pickG = makeSnapGroup(0.55);
+function placeSnap(g, part, snap) {
+  if (!part || !snap) { g.visible = false; needsRender = true; return; }
+  const M = rawMatrix(part);
+  const pw = snap.point.clone().applyMatrix4(M);
+  const nw = snap.normal.clone().transformDirection(M);
+  g.position.copy(pw);
+  g.quaternion.setFromUnitVectors(EZ, nw);
+  const r = snap.radius ? snap.radius * part.unit : 0;
+  g.userData.r = r;
+  g.userData.ring.visible = r > 0;
+  g.userData.disc.visible = !r;
+  g.visible = true;
+  needsRender = true;
+}
+
+// ── Escena por cuadro ──────────────────────────────────────────────
+const tmpV = V3();
+function pxWorld(pos) {
+  const d = camera.position.distanceTo(pos);
+  const hpx = renderer.domElement.clientHeight || 600;
+  return (2 * d * Math.tan((camera.fov * DEG) / 2)) / hpx;
+}
+function updateScene() {
+  WORLD = computeWorld(true);
+  for (const p of S.parts.values()) {
+    if (!p.mesh) continue;
+    p.mesh.matrix.copy(rawMatrix(p, WORLD.get(p.id)));
+    p.mesh.matrixWorldNeedsUpdate = true;
+  }
+  const selJ = S.sel && S.sel.type === 'joint' ? S.sel.id : null;
+  for (const j of S.joints.values()) {
+    const je = effJoint(j);
+    if (!j.vis || j.vis.userData.visType !== `${je.type}/${je.axis}/${je.sign}`) buildJointVis(j);
+    const parent = S.parts.get(j.parent);
+    const F = WORLD.get(parent.id).clone().multiply(frameMat(j));
+    const { p, q } = decompose(F);
+    j.vis.position.copy(p); j.vis.quaternion.copy(q);
+    const s = pxWorld(p) * (selJ === j.id ? 64 : 46);
+    j.vis.scale.setScalar(s);
+    j.vis.visible = S.showFrames || selJ === j.id || (S.preview && S.preview.jointId === j.id);
+    const op = selJ === j.id || !selJ ? 1 : 0.4;
+    j.vis.traverse((o) => { if (o.material && o.material.visible !== false) o.material.opacity = op * (o.userData.baseOp ?? (o.userData.baseOp = o.material.opacity)); });
+  }
+  for (const g of [snapG, pickG]) {
+    if (!g.visible) continue;
+    const s = pxWorld(g.position);
+    const { ring, dot, arrow, disc, r } = g.userData;
+    dot.scale.setScalar(s * 4.5);
+    arrow.scale.setScalar(s * 46);
+    disc.scale.setScalar(s * 11);
+    if (r > 0) {
+      ring.scale.set(r, r, r);
+      const tube = Math.max(s * 2.2 / r, 0.012);
+      if (Math.abs((ring.userData.tube || 0) - tube) > tube * 0.25) {
+        ring.geometry.dispose();
+        ring.geometry = new THREE.TorusGeometry(1, tube, 6, 64);
+        ring.userData.tube = tube;
+      }
+    }
+  }
+  if (tc.object) {
+    const p = S.parts.get(tc.object.userData.partId);
+    if (p && !tc.dragging) placeProxy(p);
+  }
+}
+
+// ── Mover / rotar piezas (solo raíces) ─────────────────────────────
+const proxy = new THREE.Object3D();
+scene.add(proxy);
+const tc = new TransformControls(camera, renderer.domElement);
+tc.setSize(0.85);
+tc.setTranslationSnap(0.001);
+tc.setRotationSnap(5 * DEG);
+scene.add(tc);
+tc.addEventListener('dragging-changed', (e) => { controls.enabled = !e.value; if (!e.value) commit(); });
+tc.addEventListener('change', () => { needsRender = true; });
+tc.addEventListener('objectChange', () => {
+  const p = S.parts.get(proxy.userData.partId);
+  if (!p) return;
+  const c = localCenter(p);
+  const newRest = compose(proxy.position, proxy.quaternion).multiply(T4(-c.x, -c.y, -c.z));
+  setSubtreeRest(p.id, newRest);
+  needsRender = true;
+  renderInspectorLive();
+});
+function placeProxy(p) {
+  const c = localCenter(p);
+  const m = p.rest.clone().multiply(T4(c.x, c.y, c.z));
+  const d = decompose(m);
+  proxy.position.copy(d.p); proxy.quaternion.copy(d.q);
+  proxy.userData.partId = p.id;
+  proxy.updateMatrixWorld(true);
+}
+function updateGizmo() {
+  const p = S.sel && S.sel.type === 'part' ? S.parts.get(S.sel.id) : null;
+  if ((S.tool === 'move' || S.tool === 'rotate') && p && isRoot(p.id)) {
+    placeProxy(p);
+    tc.setMode(S.tool === 'move' ? 'translate' : 'rotate');
+    tc.setSpace(S.tool === 'move' ? 'world' : 'local');
+    if (tc.object !== proxy) tc.attach(proxy);
+  } else if (tc.object) tc.detach();
+  needsRender = true;
+}
+
+// ── Crear uniones ──────────────────────────────────────────────────
+// Ajusta la hija para que su marco elegido coincida con el del padre (como "Joint" de Fusion 360).
+function solveMateRest(j) {
+  const m = j.mate, parent = S.parts.get(j.parent);
+  const T = parent.rest.clone().multiply(m.Lp).multiply(T4(0, 0, m.offset))
+    .multiply(M4().makeRotationZ(m.angle * DEG))
+    .multiply(m.flip ? M4() : M4().makeRotationX(Math.PI));
+  return T.multiply(inv(m.Lc));
+}
+function applyMate(j) {
+  setSubtreeRest(j.child, solveMateRest(j));
+  const F = j.mate.Lp.clone().multiply(T4(0, 0, j.mate.offset));
+  const d = decompose(F);
+  j.framePos.copy(d.p); j.holeQuat.copy(d.q);
+}
+function defaultMateAngle(parent, child, Lc, Lp, W) {
+  // Ángulo alrededor del eje que menos gira la pieza respecto a su orientación actual.
+  const relOld = parent.rest.clone().multiply(inv(W.get(parent.id))).multiply(W.get(child.id));
+  const Rold = rot3(relOld);
+  const A = rot3(parent.rest.clone().multiply(Lp));
+  const B = rot3(M4().makeRotationX(Math.PI).multiply(inv(Lc)));
+  const Mx = matMul3(matMul3(B, tr3(Rold)), A);
+  let ang = Math.atan2(Mx[0][1] - Mx[1][0], Mx[0][0] + Mx[1][1]) / DEG;
+  const snapped = Math.round(ang / 90) * 90;
+  if (Math.abs(ang - snapped) < 3) ang = snapped;
+  ang = Math.round(ang * 10) / 10;
+  if (ang <= -180) ang += 360;
+  if (ang > 180) ang -= 360;
+  return ang;
+}
+function autoAxis(j) {
+  const parent = S.parts.get(j.parent);
+  const Fw = parent.rest.clone().multiply(compose(j.framePos, j.holeQuat));
+  const z = V3().setFromMatrixColumn(Fw, 2).normalize();
+  const keys = ['x', 'y', 'z'];
+  let found = -1;
+  [EX, EY, EZ].forEach((a, i) => { if (Math.abs(z.dot(a)) > Math.cos(2 * DEG)) found = i; });
+  j.spin = 0;
+  if (found >= 0) {
+    j.frameMode = 'world';
+    j.worldQuat = decompose(parent.rest).q.invert();
+    j.axis = keys[found]; j.sign = 1;
+  } else {
+    j.frameMode = 'hole'; j.axis = 'z'; j.sign = 1;
+  }
+}
+function setFrameMode(j, mode) {
+  j.frameMode = mode;
+  if (mode === 'world') {
+    const parent = S.parts.get(j.parent);
+    j.worldQuat = decompose(parent.rest).q.invert();
+    // elige el eje del mundo más parecido al del agujero
+    const Fw = parent.rest.clone().multiply(compose(j.framePos, j.holeQuat));
+    const curAx = V3().setFromMatrixColumn(Fw, ['x', 'y', 'z'].indexOf(j.axis)).normalize();
+    let best = 'z', bd = -1;
+    for (const [k, a] of [['x', EX], ['y', EY], ['z', EZ]]) { const d = Math.abs(curAx.dot(a)); if (d > bd) { bd = d; best = k; } }
+    j.axis = best;
+  } else {
+    j.axis = 'z';
+  }
+}
+
+function createJoint(childId, parentId, Lc, Lp, mode) {
+  const W = computeWorld(false);
+  const parent = S.parts.get(parentId), child = S.parts.get(childId);
+  const takenJ = new Set([...S.joints.values()].map((x) => x.name));
+  const j = newJoint({ name: uniqueName(`${child.name}_joint`, takenJ), parent: parentId, child: childId });
+  if (mode === 'assemble') {
+    const angle = defaultMateAngle(parent, child, Lc, Lp, W);
+    j.mate = { Lc: Lc.clone(), Lp: Lp.clone(), flip: false, angle, offset: 0 };
+    applyMate(j);
+  } else {
+    const rel = inv(W.get(parentId)).multiply(W.get(childId));
+    setSubtreeRest(childId, parent.rest.clone().multiply(rel));
+    const F = rel.clone().multiply(Lc);
+    const d = decompose(F);
+    j.framePos.copy(d.p); j.holeQuat.copy(d.q);
+  }
+  autoAxis(j);
+  S.joints.set(j.id, j);
+  rebuildIndex();
+  buildJointVis(j);
+  return j;
+}
+
+function deleteJoint(j, keepPose = true) {
+  const W = computeWorld(false);
+  if (keepPose) {
+    const child = S.parts.get(j.child);
+    const D = W.get(child.id).clone().multiply(inv(child.rest));
+    S.joints.delete(j.id);
+    rebuildIndex();
+    applySubtreeDelta(child.id, D);
+  } else {
+    S.joints.delete(j.id);
+  }
+  removeJointVis(j);
+  rebuildIndex();
+}
+
+function deletePart(p) {
+  for (const j of [...S.joints.values()]) if (j.parent === p.id || j.child === p.id) deleteJoint(j);
+  removePartMesh(p);
+  S.parts.delete(p.id);
+  if (S.baseId === p.id) S.baseId = null;
+  rebuildIndex();
+}
+
+// Convierte una pieza en la raíz (base) invirtiendo las uniones del camino.
+function makeBase(id) {
+  const before = computeWorld(false);
+  const path = [];
+  let c = id;
+  while (S.parentOf.has(c)) { const j = S.parentOf.get(c); path.push(j); c = j.parent; }
+  for (const j of path) {
+    const oldP = S.parts.get(j.parent), newP = S.parts.get(j.child);
+    const Fw = oldP.rest.clone().multiply(frameMat(j));
+    const local = inv(newP.rest).multiply(Fw);
+    const d = decompose(local);
+    j.framePos.copy(d.p); j.holeQuat.copy(d.q); j.worldQuat.copy(d.q); j.spin = 0;
+    const tmp = j.parent; j.parent = j.child; j.child = tmp;
+    j.sign = -j.sign;
+    j.mate = null;
+  }
+  S.baseId = id;
+  rebuildIndex();
+  // La nueva base se queda donde se veía (si había uniones movidas).
+  const after = computeWorld(false);
+  const D = before.get(id).clone().multiply(inv(after.get(id)));
+  applySubtreeDelta(id, D);
+  for (const j of path) buildJointVis(j);
+}
+
+// Coloca piezas recién subidas en fila si quedaron encimadas.
+function overlapRatio(a, b) {
+  const i = a.clone().intersect(b);
+  if (i.isEmpty()) return 0;
+  const vol = (bx) => { const s = bx.getSize(V3()); return Math.max(s.x, 1e-5) * Math.max(s.y, 1e-5) * Math.max(s.z, 1e-5); };
+  return vol(i) / Math.min(vol(a), vol(b));
+}
+function maybeArrange(added) {
+  const ids = new Set(added.map((p) => p.id));
+  let crowded = false;
+  for (const a of added) {
+    const ba = worldBox(a);
+    for (const b of S.parts.values()) {
+      if (b.id === a.id) continue;
+      if (overlapRatio(ba, worldBox(b)) > 0.6) { crowded = true; break; }
+    }
+    if (crowded) break;
+  }
+  if (!crowded) return false;
+  let x = -Infinity;
+  for (const p of S.parts.values()) if (!ids.has(p.id)) x = Math.max(x, worldBox(p).max.x);
+  const sizes = added.map((p) => worldBox(p).getSize(V3()));
+  const gap = Math.max(0.015, 0.15 * Math.max(...sizes.map((s) => Math.max(s.x, s.y))));
+  if (!isFinite(x)) {
+    const total = sizes.reduce((s, v) => s + v.x, 0) + gap * (added.length - 1);
+    x = -total / 2;
+  } else x += gap;
+  for (const p of added) {
+    const b = worldBox(p);
+    const D = T4(x - b.min.x, -(b.min.y + b.max.y) / 2, -b.min.z);
+    applySubtreeDelta(p.id, D);
+    x += b.getSize(V3()).x + gap;
+  }
+  return true;
+}
+
+// ── Cámara ─────────────────────────────────────────────────────────
+function sceneBox(ids) {
+  const box = new THREE.Box3();
+  for (const p of S.parts.values()) if (!ids || ids.includes(p.id)) box.union(worldBox(p, worldOf(p)));
+  return box;
+}
+function fitView(dir, ids) {
+  WORLD = computeWorld(true);
+  const box = sceneBox(ids);
+  if (box.isEmpty()) { box.set(V3(-0.1, -0.1, 0), V3(0.1, 0.1, 0.2)); }
+  const c = box.getCenter(V3());
+  const r = Math.max(box.getSize(V3()).length() / 2, 0.02);
+  const d = dir ? dir.clone().normalize() : camera.position.clone().sub(controls.target).normalize();
+  const dist = r / Math.sin((camera.fov * DEG) / 2) * 1.08;
+  controls.target.copy(c);
+  camera.position.copy(c).addScaledVector(d, dist);
+  camera.near = Math.max(dist / 500, 0.0005); camera.far = dist * 60;
+  camera.updateProjectionMatrix();
+  const need = Math.max(1, Math.pow(2, Math.ceil(Math.log2(Math.max(box.getSize(V3()).x, box.getSize(V3()).y, 0.3) * 2.2))));
+  if (need !== gridSize) buildGrid(need);
+  needsRender = true;
+}
+const VIEWS = {
+  iso: V3(0.95, 1.15, 0.72), front: V3(1, 0.0001, 0.0001), side: V3(0.0001, 1, 0.0001), top: V3(0.0001, -0.0002, 1),
+};
+
+function resize() {
+  const w = vpEl.clientWidth, hgt = vpEl.clientHeight;
+  if (!w || !hgt) return;
+  renderer.setSize(w, hgt, false);
+  camera.aspect = w / hgt;
+  camera.updateProjectionMatrix();
+  needsRender = true;
+}
+new ResizeObserver(resize).observe(vpEl);
+
+// ── Bucle de render ────────────────────────────────────────────────
+let lastLive = 0;
+function frameLoop(tms) {
+  requestAnimationFrame(frameLoop);
+  clock = tms / 1000;
+  if (S.preview && S.preview.until && clock > S.preview.until) { S.preview = null; needsRender = true; }
+  const anim = !!(S.preview || S.play);
+  const moved = controls.update();
+  if (!needsRender && !anim && !moved) return;
+  needsRender = false;
+  updateScene();
+  renderer.setScissorTest(false);
+  renderer.render(scene, camera);
+  // gizmo de ejes
+  const w = renderer.domElement.clientWidth, hgt = renderer.domElement.clientHeight;
+  const gs = Math.min(88, Math.round(Math.min(w, hgt) * 0.22));
+  gizCam.position.copy(camera.position).sub(controls.target).normalize().multiplyScalar(4);
+  gizCam.up.copy(camera.up);
+  gizCam.lookAt(0, 0, 0);
+  renderer.autoClear = false;
+  renderer.setScissorTest(true);
+  renderer.setScissor(w - gs - 8, 8, gs, gs);
+  renderer.setViewport(w - gs - 8, 8, gs, gs);
+  renderer.clearDepth();
+  renderer.render(gizScene, gizCam);
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, w, hgt);
+  renderer.autoClear = true;
+  if (anim && tms - lastLive > 80) { lastLive = tms; liveJointValues(); }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  03 · interacción: snaps, herramientas, paneles e inspector
+// ════════════════════════════════════════════════════════════════════
+
+// ── Snap sobre la pieza (centro de agujero, cilindro, cara o punto) ─
+function triIndexOfHit(hit) {
+  const idx = hit.object.geometry.index;
+  return idx ? Math.floor(idx.array[hit.faceIndex * 3] / 3) : hit.faceIndex;
+}
+function computeSnap(part, hit) {
+  const an = pool.get(part.id).an;
+  const Minv = inv(rawMatrix(part));
+  const p = hit.point.clone().applyMatrix4(Minv);
+  const tri = triIndexOfHit(hit);
+  const fn = V3(an.FN[3 * tri], an.FN[3 * tri + 1], an.FN[3 * tri + 2]);
+  if (fn.lengthSq() === 0 && hit.face) fn.copy(hit.face.normal);
+  const point = { kind: 'point', point: p, normal: fn.clone().normalize() };
+  if (S.snapMode === 'point') return point;
+  const reg = regionFor(an, tri);
+  if (S.snapMode === 'face') {
+    if (reg.type === 'plane') return { kind: 'face', point: reg.centroid.clone(), normal: reg.normal.clone() };
+    if (reg.type === 'cyl') {
+      const tm = (reg.tmin + reg.tmax) / 2;
+      return { kind: 'cylmid', point: reg.center.clone().addScaledVector(reg.axis, tm), normal: reg.axis.clone(), radius: reg.radius };
+    }
+    return point;
+  }
+  if (reg.type === 'cyl') {
+    const t = p.clone().sub(reg.center).dot(reg.axis);
+    const useMax = Math.abs(t - reg.tmax) <= Math.abs(t - reg.tmin);
+    const tt = useMax ? reg.tmax : reg.tmin;
+    return { kind: 'cyl', point: reg.center.clone().addScaledVector(reg.axis, tt), normal: reg.axis.clone().multiplyScalar(useMax ? 1 : -1), radius: reg.radius };
+  }
+  const tolRaw = (pxWorld(hit.point) * 18) / part.unit;
+  const e = nearestFeatureEdge(an, p, tolRaw);
+  if (e >= 0) {
+    const c = loopFor(an, e);
+    if (c) return { kind: 'hole', point: c.center.clone(), normal: c.normal.clone(), radius: c.radius };
+  }
+  return point;
+}
+function snapLabel(s, part) {
+  const d = s.radius ? ` · Ø ${(2 * s.radius * part.unit * 1000).toFixed(2)} mm` : '';
+  const pre = `<b>${part.name}</b> · `;
+  if (s.kind === 'hole') return `${pre}Centro de borde circular${d}`;
+  if (s.kind === 'cyl') return `${pre}Centro del agujero / eje${d}`;
+  if (s.kind === 'cylmid') return `${pre}Centro del cilindro (a la mitad)${d}`;
+  if (s.kind === 'face') return `${pre}Centro de la cara plana`;
+  return `${pre}Punto sobre la superficie`;
+}
+
+// ── Raycast ────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+raycaster.firstHitOnly = true;
+const ndc = new THREE.Vector2();
+const canvas = renderer.domElement;
+function setNDC(ev) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+}
+function hitParts(filter) {
+  scene.updateMatrixWorld();
+  const meshes = [...S.parts.values()].filter((p) => p.mesh && (!filter || filter(p))).map((p) => p.mesh);
+  return raycaster.intersectObjects(meshes, false)[0] || null;
+}
+function hitJoint() {
+  scene.updateMatrixWorld();
+  const objs = [...S.joints.values()].filter((j) => j.vis && j.vis.visible).map((j) => j.vis.userData.hit);
+  const hh = raycaster.intersectObjects(objs, false)[0];
+  return hh ? S.joints.get(hh.object.userData.jointId) : null;
+}
+function jtFilter() {
+  if (!S.jt) return null;
+  if (S.jt.step === 2) return (p) => p.id !== S.jt.first.partId;
+  if (S.jt.step === 'repick') { const j = S.joints.get(S.jt.jointId); return (p) => j && (p.id === j.parent || p.id === j.child); }
+  return null;
+}
+
+// ── Eventos del visor ──────────────────────────────────────────────
+let ptrDown = null, lastPtr = null, hoverQueued = false;
+canvas.addEventListener('pointerdown', (ev) => {
+  ptrDown = { x: ev.clientX, y: ev.clientY, moved: false, onGizmo: !!(tc.object && tc.axis), button: ev.button };
+});
+window.addEventListener('pointermove', (ev) => {
+  if (ptrDown && Math.hypot(ev.clientX - ptrDown.x, ev.clientY - ptrDown.y) > 5) ptrDown.moved = true;
+});
+canvas.addEventListener('pointerup', (ev) => {
+  const d = ptrDown; ptrDown = null;
+  if (!d || d.moved || d.onGizmo || d.button !== 0) return;
+  onViewportClick(ev);
+});
+canvas.addEventListener('pointermove', (ev) => {
+  lastPtr = ev;
+  if (!hoverQueued) { hoverQueued = true; requestAnimationFrame(processHover); }
+});
+canvas.addEventListener('pointerleave', () => {
+  lastPtr = null;
+  if (S.hoverPart) { const prev = S.parts.get(S.hoverPart); S.hoverPart = null; if (prev) styleMesh(prev); }
+  if (S.jt) { S.jt.hover = null; placeSnap(snapG, null); }
+});
+
+function processHover() {
+  hoverQueued = false;
+  if (!lastPtr || tc.dragging || (ptrDown && ptrDown.moved) || lastPtr.pointerType === 'touch') return;
+  setNDC(lastPtr);
+  if (S.jt) {
+    const hit = hitParts(jtFilter());
+    if (hit) {
+      const p = S.parts.get(hit.object.userData.partId);
+      const s = computeSnap(p, hit);
+      S.jt.hover = { partId: p.id, snap: s };
+      placeSnap(snapG, p, s);
+      setStatus(snapLabel(s, p));
+      canvas.style.cursor = 'crosshair';
+    } else {
+      S.jt.hover = null; placeSnap(snapG, null);
+      canvas.style.cursor = 'default';
+      setStatus(jtIdleText());
+    }
+    return;
+  }
+  const jh = hitJoint();
+  const hit = jh ? null : hitParts();
+  const id = hit ? hit.object.userData.partId : null;
+  if (id !== S.hoverPart) {
+    const prev = S.hoverPart; S.hoverPart = id;
+    for (const x of [prev, id]) if (x && S.parts.get(x)) styleMesh(S.parts.get(x));
+  }
+  canvas.style.cursor = jh || hit ? 'pointer' : 'default';
+  if (jh) setStatus(`Unión <b>${jh.name}</b> · ${dofWords(jh)}`);
+  else if (hit) { const p = S.parts.get(id); setStatus(`<b>${p.name}</b> · ${MATERIALS[p.mat].n}`); }
+  else setIdleStatus();
+}
+
+function onViewportClick(ev) {
+  setNDC(ev);
+  if (S.jt) {
+    const hit = hitParts(jtFilter());
+    if (!hit) return;
+    const p = S.parts.get(hit.object.userData.partId);
+    jointPick(p, computeSnap(p, hit));
+    return;
+  }
+  const jh = hitJoint();
+  if (jh) { select({ type: 'joint', id: jh.id }); return; }
+  const hit = hitParts();
+  if (hit) select({ type: 'part', id: hit.object.userData.partId });
+  else select(null);
+}
+
+// ── Herramienta de unión ───────────────────────────────────────────
+function startJointTool(repickId) {
+  if (!repickId && S.parts.size < 2) { toast('Necesitas al menos dos piezas para crear una unión.', 'warn'); return; }
+  stopPlay(); S.preview = null;
+  S.tool = 'joint';
+  S.jt = repickId ? { step: 'repick', jointId: repickId } : { step: 1, mode: S.lastJointMode, first: null };
+  if (S.sel && S.sel.type === 'part' && !repickId) select(null);
+  updateGizmo(); renderToolbar(); renderBanner(); styleAll();
+  setStatus(jtIdleText());
+}
+function endJointTool() {
+  S.jt = null; S.tool = 'select';
+  placeSnap(snapG, null); placeSnap(pickG, null);
+  canvas.style.cursor = 'default';
+  updateGizmo(); renderToolbar(); renderBanner(); styleAll(); setIdleStatus();
+}
+function jtIdleText() {
+  if (!S.jt) return '';
+  if (S.jt.step === 'repick') return 'Pasa el mouse por un agujero: verás su centro marcado.';
+  return S.jt.step === 1 ? 'Pasa el mouse por un agujero: el anillo ámbar marca su centro y el eje.' : 'Elige el punto de la pieza padre.';
+}
+function jointPick(p, s) {
+  const L = frameFromZ(s.point.clone().multiplyScalar(p.unit), s.normal);
+  const jt = S.jt;
+  if (jt.step === 'repick') {
+    const j = S.joints.get(jt.jointId);
+    if (!j) { endJointTool(); return; }
+    const parent = S.parts.get(j.parent), child = S.parts.get(j.child);
+    const F = p.id === j.parent ? L : inv(parent.rest).multiply(child.rest).multiply(L);
+    const d = decompose(F);
+    j.framePos.copy(d.p); j.holeQuat.copy(d.q); j.spin = 0; j.mate = null;
+    if (j.frameMode === 'hole') j.axis = 'z';
+    endJointTool();
+    select({ type: 'joint', id: j.id });
+    commit();
+    toast(`Reubiqué el centro de ${j.name}.`);
+    return;
+  }
+  if (jt.step === 1) {
+    jt.first = { partId: p.id, L, snap: s };
+    jt.step = 2;
+    placeSnap(pickG, p, s);
+    styleAll(); renderBanner();
+    setStatus(jtIdleText());
+    return;
+  }
+  const first = jt.first;
+  if (p.id === first.partId) { toast('Elige una pieza distinta para el segundo clic.', 'warn'); return; }
+  let childId = first.partId, parentId = p.id, Lc = first.L, Lp = L, swapped = false;
+  const bad = (c, par) => S.parentOf.has(c) || isAncestor(c, par);
+  if (bad(childId, parentId)) {
+    if (!bad(parentId, childId)) { [childId, parentId] = [parentId, childId]; [Lc, Lp] = [Lp, Lc]; swapped = true; }
+    else {
+      const msg = S.parentOf.has(childId) && S.parentOf.has(parentId)
+        ? 'Las dos piezas ya tienen padre. En URDF cada pieza tiene un solo padre: elimina una de sus uniones primero.'
+        : 'Esas piezas ya están en la misma cadena; unirlas formaría un ciclo y URDF solo permite árboles.';
+      toast(msg, 'err', 6000);
+      return;
+    }
+  }
+  const j = createJoint(childId, parentId, Lc, Lp, jt.mode);
+  S.lastJointMode = jt.mode;
+  endJointTool();
+  select({ type: 'joint', id: j.id });
+  commit();
+  const c = S.parts.get(childId).name, pa = S.parts.get(parentId).name;
+  toast(swapped ? `${S.parts.get(first.partId).name} ya tenía padre, así que ${c} quedó como hija de ${pa}.` : `Unión creada: ${pa} (padre) → ${c} (hija).`);
+  autoPreview(j);
+}
+function autoPreview(j) {
+  if (j.type === 'fixed') return;
+  S.preview = { jointId: j.id, type: j.type, axis: j.axis, sign: j.sign, t0: clock, until: clock + 2.4 };
+  needsRender = true;
+}
+
+// ── Selección y herramientas ───────────────────────────────────────
+function select(sel) {
+  if (S.play) stopPlay();
+  if (S.preview && !(sel && sel.type === 'joint' && sel.id === S.preview.jointId)) S.preview = null;
+  S.sel = sel;
+  styleAll(); updateGizmo(); renderTree(); renderInspector(); renderJointsPanel();
+  needsRender = true;
+}
+function setTool(t) {
+  if (t === 'joint') { if (S.jt) endJointTool(); else startJointTool(); return; }
+  if (S.jt) endJointTool();
+  S.tool = t;
+  updateGizmo(); renderToolbar();
+  if ((t === 'move' || t === 'rotate')) {
+    const p = S.sel && S.sel.type === 'part' ? S.parts.get(S.sel.id) : null;
+    if (!p) setStatus('Selecciona una pieza para moverla.');
+    else if (!isRoot(p.id)) setStatus(`<b>${p.name}</b> está unida a otra pieza; se mueve con su unión.`);
+  }
+}
+function deleteSelected() {
+  if (!S.sel) return;
+  if (S.sel.type === 'part') { const p = S.parts.get(S.sel.id); if (!p) return; deletePart(p); toast(`Eliminé ${p.name}. Ctrl+Z para deshacer.`); }
+  else { const j = S.joints.get(S.sel.id); if (!j) return; deleteJoint(j); toast(`Eliminé la unión ${j.name}. Ctrl+Z para deshacer.`); }
+  S.sel = null;
+  commit(); renderUI();
+}
+function stopPlay() {
+  if (!S.play) return;
+  const j = S.joints.get(S.play.jointId);
+  if (j) j.q = playQ(j);
+  S.play = null;
+  needsRender = true;
+  if (j) { liveJointValues(true); commit(); }
+  const b = $('#playBtn'); if (b) { b.innerHTML = svgIcon('play'); b.title = 'Animar entre los límites'; }
+}
+function togglePlay(j) {
+  if (S.play && S.play.jointId === j.id) { stopPlay(); return; }
+  stopPlay(); S.preview = null;
+  S.play = { jointId: j.id, t0: clock };
+  needsRender = true;
+  const b = $('#playBtn'); if (b) { b.innerHTML = svgIcon('pause'); b.title = 'Pausar'; }
+}
+
+// ── Textos ─────────────────────────────────────────────────────────
+const AX_NAMES = { x: 'X', y: 'Y', z: 'Z' };
+const RPY = { x: 'roll', y: 'pitch', z: 'yaw' };
+function dofCode(j) {
+  if (j.type === 'fixed') return { t: 'fija', c: 'var(--muted)' };
+  const pre = j.type === 'prismatic' ? 'T' : 'R';
+  return { t: `${pre}${j.axis}${j.type === 'continuous' ? '∞' : ''}${j.sign < 0 ? '−' : ''}`, c: `var(--${j.axis})` };
+}
+function dofWords(j) {
+  if (j.type === 'fixed') return 'unión fija';
+  const ref = j.frameMode === 'world' ? `eje ${AX_NAMES[j.axis]} del mundo` : j.axis === 'z' ? 'eje del agujero' : `eje ${AX_NAMES[j.axis]} del agujero`;
+  const s = j.sign < 0 ? ' (sentido invertido)' : '';
+  if (j.type === 'prismatic') return `desliza sobre el ${ref}${s}`;
+  return `${j.type === 'continuous' ? 'gira sin límite' : 'gira'} alrededor del ${ref}${s}`;
+}
+function setStatus(html) { $('#vpStatus').innerHTML = html; }
+function setIdleStatus() {
+  if (S.jt) { setStatus(jtIdleText()); return; }
+  if (!S.parts.size) setStatus('Sube tus STL o arrástralos aquí para empezar.');
+  else if (S.tool === 'move' || S.tool === 'rotate') setStatus('Arrastra las flechas o aros para mover la pieza seleccionada.');
+  else setStatus('Clic para seleccionar · <b>J</b> para unir piezas · arrastra para orbitar');
+}
+
+// ── Barra de herramientas del visor ────────────────────────────────
+function renderToolbar() {
+  const bar = $('#vpTools');
+  bar.innerHTML = '';
+  const tools = [['select', 'Seleccionar', 'V'], ['move', 'Mover pieza', 'G'], ['rotate', 'Rotar pieza', 'R'], ['joint', 'Unir piezas (crear joint)', 'J']];
+  for (const [id, label, k] of tools) {
+    const active = id === 'joint' ? !!S.jt : S.tool === id && !S.jt;
+    bar.append(h('button', { class: 'tool', 'aria-pressed': String(active), title: `${label} (${k})`, 'aria-label': label, onclick: () => setTool(id) }, iconEl(id), h('span', { class: 'k' }, k)));
+  }
+  bar.append(h('div', { class: 'sep-h' }));
+  bar.append(h('button', { class: 'tool', title: 'Encuadrar todo (F)', 'aria-label': 'Encuadrar', onclick: () => fitView() }, iconEl('fit')));
+  bar.append(h('button', { class: 'tool', 'aria-pressed': String(S.showFrames), title: 'Mostrar ejes de las uniones', 'aria-label': 'Ejes de las uniones', onclick: () => { S.showFrames = !S.showFrames; needsRender = true; renderToolbar(); } }, iconEl('frames')));
+  bar.append(h('button', { class: 'tool', 'aria-pressed': String(S.showEdges), title: 'Mostrar aristas', 'aria-label': 'Aristas', onclick: () => { S.showEdges = !S.showEdges; styleAll(); renderToolbar(); } }, iconEl('edges')));
+  bar.append(h('div', { class: 'sep-h' }));
+  bar.append(h('button', { class: 'tool', title: 'Subir STL', 'aria-label': 'Subir STL', onclick: () => $('#fileInput').click() }, iconEl('upload')));
+}
+function renderViews() {
+  const v = $('#vpViews');
+  v.innerHTML = '';
+  for (const [k, l] of [['iso', 'Iso'], ['front', 'Frente'], ['side', 'Lado'], ['top', 'Arriba']]) {
+    v.append(h('button', { class: 'btn sm', onclick: () => fitView(VIEWS[k]) }, l));
+  }
+}
+
+function renderBanner() {
+  const b = $('#banner');
+  $('#vpWrap').classList.toggle('jt-on', !!S.jt);
+  if (!S.jt) { b.hidden = true; b.innerHTML = ''; return; }
+  b.hidden = false; b.innerHTML = '';
+  const jt = S.jt;
+  let step, msg;
+  if (jt.step === 'repick') {
+    const j = S.joints.get(jt.jointId);
+    step = 'Reubicar';
+    msg = `Haz clic en el nuevo centro de ${j ? j.name : 'la unión'}, sobre la pieza padre o la hija.`;
+  } else if (jt.step === 1) {
+    step = 'Unión · 1 de 2';
+    msg = jt.mode === 'assemble'
+      ? 'Clic en la pieza que se va a mover, justo en el agujero o cara donde va el motor o servo.'
+      : 'Clic en el agujero de la pieza hija donde estará el eje de la unión.';
+  } else {
+    step = 'Unión · 2 de 2';
+    const n = S.parts.get(jt.first.partId).name;
+    msg = jt.mode === 'assemble'
+      ? `Ahora clic en el punto de la pieza fija (padre) donde debe encajar ${n}.`
+      : `Ahora clic en la pieza padre: la que sostiene a ${n}.`;
+  }
+  b.append(h('div', { class: 'b-top' }, h('span', { class: 'step' }, step), h('div', { class: 'msg' }, msg),
+    h('button', { class: 'btn sm ghost', onclick: endJointTool, title: 'Cancelar (Esc)' }, 'Cancelar')));
+  const row = h('div', { class: 'b-row' });
+  if (jt.step !== 'repick') {
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Modo de unión' });
+    for (const [k, l] of [['assemble', 'Encajar piezas'], ['inplace', 'Ya están en posición']]) {
+      seg.append(h('button', { 'aria-pressed': String(jt.mode === k), onclick: () => { jt.mode = k; S.lastJointMode = k; renderBanner(); } }, l));
+    }
+    row.append(seg);
+  }
+  const seg2 = h('div', { class: 'seg', role: 'group', 'aria-label': 'Tipo de punto' });
+  for (const [k, l] of [['auto', 'Agujeros'], ['face', 'Centro de cara'], ['point', 'Punto libre']]) {
+    seg2.append(h('button', { 'aria-pressed': String(S.snapMode === k), onclick: () => { S.snapMode = k; renderBanner(); } }, l));
+  }
+  row.append(seg2);
+  b.append(row);
+}
+
+// ── Panel izquierdo ────────────────────────────────────────────────
+function renderUnitSeg() {
+  const seg = $('#unitSeg'); seg.innerHTML = '';
+  for (const u of UNITS) seg.append(h('button', { 'aria-pressed': String(S.newUnit === u.v), onclick: () => { S.newUnit = u.v; renderUnitSeg(); } }, u.l));
+}
+function treeOrder() {
+  const roots = [...S.parts.keys()].filter(isRoot);
+  const base = S.baseId && roots.includes(S.baseId) ? S.baseId : null;
+  const withKids = roots.filter((r) => r !== base && (S.childrenOf.get(r) || []).length);
+  const loose = roots.filter((r) => r !== base && !(S.childrenOf.get(r) || []).length);
+  return { base, withKids, loose };
+}
+function renderTree() {
+  const tree = $('#tree'); tree.innerHTML = '';
+  $('#partCount').textContent = S.parts.size ? `${S.parts.size}` : '';
+  $('#treeCount').textContent = S.joints.size ? `${S.joints.size} uniones` : '';
+  if (!S.parts.size) { tree.append(h('div', { class: 'empty-tree' }, 'Aún no hay piezas. Sube los STL de tu robot.')); return; }
+  const isSel = (t, id) => S.sel && S.sel.type === t && S.sel.id === id;
+  const guides = (depth) => Array.from({ length: depth }, (_, i) => h('span', { class: 'guide', style: `left:${14 + i * 16}px` }));
+  const partRow = (id, depth) => {
+    const p = S.parts.get(id);
+    tree.append(h('button', { class: `tree-row${isSel('part', id) ? ' sel' : ''}`, style: `padding-left:${8 + depth * 16}px`, onclick: () => select({ type: 'part', id }), ondblclick: () => fitView(null, subtree(id)) },
+      guides(depth),
+      h('span', { class: 'dot', style: `background:${p.color}` }),
+      h('span', { class: 'nm mono' }, p.name),
+      id === S.baseId ? h('span', { class: 'tag base' }, 'BASE') : null,
+      h('span', { class: 'tag' }, (MATERIALS[p.mat] || MATERIALS.pla).n.split(' ')[0])));
+    for (const j of S.childrenOf.get(id) || []) {
+      const d = dofCode(j);
+      tree.append(h('button', { class: `tree-row joint${isSel('joint', j.id) ? ' sel' : ''}`, style: `padding-left:${8 + (depth + 1) * 16}px`, onclick: () => select({ type: 'joint', id: j.id }) },
+        guides(depth + 1),
+        h('span', { class: 'dofb', style: `color:${d.c}` }, d.t),
+        h('span', { class: 'nm mono' }, j.name)));
+      partRow(j.child, depth + 1);
+    }
+  };
+  const { base, withKids, loose } = treeOrder();
+  if (base) partRow(base, 0);
+  for (const r of withKids) { tree.append(h('div', { class: 'empty-tree', style: 'padding-top:10px' }, 'Otra cadena (se fijará a la base):')); partRow(r, 0); }
+  if (loose.length) {
+    tree.append(h('div', { class: 'empty-tree', style: 'padding-top:10px' }, `Sin unir (${loose.length}):`));
+    for (const r of loose) partRow(r, 0);
+  }
+}
+
+function jointsInOrder() {
+  const out = [];
+  const walk = (id) => { for (const j of S.childrenOf.get(id) || []) { out.push(j); walk(j.child); } };
+  const { base, withKids } = treeOrder();
+  if (base) walk(base);
+  withKids.forEach(walk);
+  return out;
+}
+function qText(j, q) { return isLin(j) ? fmtMM(q) : fmtDeg(q); }
+function rangeAttrs(j) {
+  const [lo, hi] = qRange(j);
+  const f = isLin(j) ? 1000 : 1 / DEG;
+  return { min: (lo * f).toFixed(1), max: (hi * f).toFixed(1), step: '0.1', f };
+}
+function renderJointsPanel() {
+  const box = $('#jointSliders'); box.innerHTML = '';
+  const mov = jointsInOrder().filter((j) => j.type !== 'fixed');
+  $('#dofCount').textContent = mov.length ? `${mov.length} GDL` : '';
+  $('#jointsSec').querySelectorAll('.row .btn').forEach((b) => { b.disabled = !mov.length; });
+  if (!mov.length) { box.append(h('div', { class: 'empty-tree' }, 'Cuando unas piezas con movimiento, aquí podrás moverlas como en joint_state_publisher_gui.')); return; }
+  for (const j of mov) {
+    const r = rangeAttrs(j);
+    const input = h('input', { type: 'range', min: r.min, max: r.max, step: r.step, value: (j.q * r.f).toFixed(1), 'data-jrange': j.id, 'aria-label': j.name });
+    input.addEventListener('input', () => { if (S.play && S.play.jointId === j.id) stopPlay(); j.q = Number(input.value) / r.f; needsRender = true; liveJointValues(true); });
+    input.addEventListener('change', () => commit());
+    box.append(h('div', { class: 'jslider' },
+      h('button', { class: 'nm mono btn ghost sm', style: 'justify-content:flex-start;padding:0 2px;height:22px', onclick: () => select({ type: 'joint', id: j.id }) }, j.name),
+      h('span', { class: 'val', 'data-jval': j.id }, qText(j, j.q)),
+      input));
+  }
+}
+function liveJointValues(all) {
+  for (const j of S.joints.values()) {
+    if (!all && !(S.play && S.play.jointId === j.id)) continue;
+    const q = S.play && S.play.jointId === j.id ? playQ(j) : j.q;
+    document.querySelectorAll(`[data-jval="${j.id}"]`).forEach((el) => { el.textContent = qText(j, q); });
+    const f = isLin(j) ? 1000 : 1 / DEG;
+    document.querySelectorAll(`[data-jrange="${j.id}"]`).forEach((el) => { if (document.activeElement !== el) el.value = (q * f).toFixed(1); });
+  }
+}
+
+// ── Inspector ──────────────────────────────────────────────────────
+function sec(title, ...kids) {
+  return h('section', { class: 'sec' }, title ? h('div', { class: 'sec-h' }, title) : null, ...kids);
+}
+function numField(label, value, unit, onchange, attrs = {}) {
+  const inp = h('input', Object.assign({ class: 'input mono', type: 'number', value, inputmode: 'decimal' }, attrs));
+  inp.addEventListener('change', () => { const v = parseFloat(inp.value); if (isFinite(v)) onchange(v); else inp.value = value; });
+  return h('label', { class: 'field' }, h('span', null, label), h('div', { class: 'unit-input' }, inp, unit ? h('em', null, unit) : null));
+}
+function renderInspector() {
+  const el = $('#inspector'); el.innerHTML = '';
+  const sel = S.sel;
+  if (sel && sel.type === 'part' && S.parts.has(sel.id)) el.append(...inspectPart(S.parts.get(sel.id)));
+  else if (sel && sel.type === 'joint' && S.joints.has(sel.id)) el.append(...inspectJoint(S.joints.get(sel.id)));
+  else el.append(...inspectNone());
+}
+function renderInspectorLive() { /* valores dependientes de la posición: sin cambios visibles en vivo */ }
+
+function renameInput(obj, kind) {
+  const inp = h('input', { class: 'name-input', value: obj.name, spellcheck: 'false', 'aria-label': 'Nombre' });
+  inp.addEventListener('change', () => {
+    const coll = kind === 'part' ? S.parts : S.joints;
+    const taken = new Set([...coll.values()].filter((o) => o !== obj).map((o) => o.name));
+    obj.name = uniqueName(rosName(inp.value, kind === 'part' ? 'pieza' : 'union'), taken);
+    inp.value = obj.name;
+    commit(); renderTree(); renderJointsPanel();
+  });
+  return inp;
+}
+
+function inspectNone() {
+  const parts = [...S.parts.values()];
+  const mass = parts.reduce((s, p) => s + inertialOf(p).mass, 0);
+  const dof = [...S.joints.values()].filter((j) => j.type !== 'fixed').length;
+  const out = [];
+  out.push(sec(null,
+    h('div', { class: 'insp-head' }, h('span', { class: 'eyebrow' }, S.isExample ? 'Robot de ejemplo' : 'Tu robot'), h('div', { class: 'name-input', style: 'margin-left:0;padding-left:0' }, S.robotName)),
+    h('div', { class: 'bigstats' },
+      h('div', null, h('b', null, String(parts.length)), h('span', null, 'piezas (links)')),
+      h('div', null, h('b', null, String(S.joints.size)), h('span', null, 'uniones (joints)')),
+      h('div', null, h('b', null, String(dof)), h('span', null, 'grados de libertad')),
+      h('div', null, h('b', null, parts.length ? fmtMass(mass) : '—'), h('span', null, 'masa estimada'))),
+    S.isExample ? h('div', { class: 'note' }, 'Este brazo es un ejemplo para que veas cómo funciona. Al subir tus STL se reemplaza. Clic en sus piezas o en los ejes de las uniones para ver sus ajustes.') : null));
+  out.push(sec('Cómo armar tu URDF', h('ol', { class: 'guide-steps' },
+    h('li', null, h('div', null, h('b', null, 'Sube los STL de cada pieza'), h('p', null, 'Elige las unidades del archivo (casi siempre mm). Si exportaste las piezas desde un ensamble, conservan su posición.'))),
+    h('li', null, h('div', null, h('b', null, 'Une las piezas con '), h('span', { class: 'kbd' }, 'J'), h('p', null, 'Primer clic en el agujero de la pieza que se mueve y segundo en el de la pieza fija. El centro del agujero se detecta solo, como en Fusion.'))),
+    h('li', null, h('div', null, h('b', null, 'Elige el grado de libertad'), h('p', null, 'Gira o desliza en X, Y o Z. Pasa el mouse por cada opción para ver cómo se mueve antes de elegir.'))),
+    h('li', null, h('div', null, h('b', null, 'Material, límites y home'), h('p', null, 'PLA, aluminio, etc. para calcular masa e inercia; límites del servo y la pose de inicio.'))),
+    h('li', null, h('div', null, h('b', null, 'Genera el URDF'), h('p', null, 'Copia el XML o descarga el paquete ROS 2 listo para colcon build y RViz.'))))));
+  out.push(sec('¿Algo no funciona?',
+    h('div', { class: 'hint' }, 'Si encuentras un error, una pieza que no se une bien o tienes una idea, avísame. Los reportes llegan directo a quien mantiene Eslabón.'),
+    h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => openReport('bug') }, iconEl('bug'), 'Reportar un error'),
+      h('button', { class: 'btn sm', onclick: () => openReport('idea') }, iconEl('message'), 'Sugerir una idea'))));
+  out.push(sec('Atajos', h('div', { class: 'hint', style: 'display:flex;flex-wrap:wrap;gap:6px 12px' },
+    ...[['V', 'seleccionar'], ['G', 'mover'], ['R', 'rotar'], ['J', 'unir'], ['F', 'encuadrar'], ['Supr', 'eliminar'], ['Ctrl+Z', 'deshacer'], ['Esc', 'cancelar']]
+      .map(([k, l]) => h('span', null, h('span', { class: 'kbd' }, k), ' ', l)))));
+  return out;
+}
+
+function inspectPart(p) {
+  const e = pool.get(p.id), an = e.an;
+  const m = MATERIALS[p.mat] || MATERIALS.pla;
+  const ip = inertialOf(p);
+  const root = isRoot(p.id), pj = S.parentOf.get(p.id);
+  const out = [];
+  const head = h('div', { class: 'insp-head' }, h('span', { class: 'eyebrow' }, 'Pieza · link'), renameInput(p, 'part'),
+    h('div', { class: 'hint mono', style: 'font-size:11.5px;overflow-wrap:anywhere' }, `${p.fileName} · ${an.nT.toLocaleString('es-MX')} triángulos`));
+  out.push(sec(null, head));
+
+  // Material
+  const msel = h('select', { class: 'select', 'aria-label': 'Material', value: p.mat }, Object.entries(MATERIALS).map(([k, v]) => h('option', { value: k }, `${v.n} · ${(v.rho / 1000).toFixed(2)} g/cm³`)));
+  msel.addEventListener('change', () => {
+    p.mat = msel.value;
+    const nm = MATERIALS[p.mat];
+    if (nm.color) p.color = nm.color;
+    styleMesh(p); commit(); renderInspector(); renderTree();
+  });
+  const color = h('input', { type: 'color', value: p.color, 'aria-label': 'Color' });
+  color.addEventListener('input', () => { p.color = color.value; styleMesh(p); });
+  color.addEventListener('change', () => { commit(); renderTree(); });
+  const matKids = [h('div', { class: 'row' }, h('div', { class: 'grow' }, msel), color)];
+  if (m.printed) {
+    const inf = h('input', { type: 'range', min: '0', max: '100', step: '5', value: p.infill, 'aria-label': 'Relleno' });
+    const infV = h('span', { class: 'mono', style: 'min-width:40px;text-align:right' }, `${p.infill}%`);
+    inf.addEventListener('input', () => { p.infill = Number(inf.value); infV.textContent = `${p.infill}%`; });
+    inf.addEventListener('change', () => { commit(); renderInspector(); });
+    matKids.push(h('label', { class: 'field' }, h('span', null, 'Relleno de impresión'), h('div', { class: 'row' }, h('div', { class: 'grow' }, inf), infV)));
+    matKids.push(h('div', { class: 'grid2' }, numField('Paredes / capas', p.walls, 'mm', (v) => { p.walls = clamp(v, 0, 20); commit(); renderInspector(); }, { step: '0.1', min: '0' }),
+      h('div', { class: 'hint', style: 'align-self:end;font-size:11.5px' }, 'Masa = cascarón sólido + relleno.')));
+  }
+  if (p.mat === 'custom') matKids.push(numField('Densidad', p.density, 'kg/m³', (v) => { p.density = Math.max(1, v); commit(); renderInspector(); }, { step: '10', min: '1' }));
+  out.push(sec('Material', ...matKids));
+
+  // Física
+  const sz = an.size.clone().multiplyScalar(p.unit * 1000);
+  const com = ip.com.clone().multiplyScalar(1000);
+  const massIn = h('input', { class: 'input mono', type: 'number', step: '0.1', min: '0', placeholder: (ip.massCalc * 1000).toFixed(1), value: p.massOverride != null ? (p.massOverride * 1000).toFixed(1) : '', 'aria-label': 'Masa manual en gramos' });
+  massIn.addEventListener('change', () => { const v = parseFloat(massIn.value); p.massOverride = isFinite(v) && v > 0 ? v / 1000 : null; commit(); renderInspector(); });
+  out.push(sec('Propiedades físicas',
+    h('dl', { class: 'stats' },
+      h('dt', null, 'Masa'), h('dd', null, `${fmtMass(ip.mass)}${p.massOverride != null ? ' (manual)' : ''}`),
+      h('dt', null, 'Volumen'), h('dd', null, `${(ip.V * 1e6).toFixed(2)} cm³`),
+      h('dt', null, 'Tamaño'), h('dd', null, `${sz.x.toFixed(1)} × ${sz.y.toFixed(1)} × ${sz.z.toFixed(1)} mm`),
+      h('dt', null, 'Centro de masa'), h('dd', null, `${com.x.toFixed(1)}, ${com.y.toFixed(1)}, ${com.z.toFixed(1)} mm`),
+      h('dt', null, 'Ixx · Iyy · Izz'), h('dd', null, `${sci(ip.I[0][0])} · ${sci(ip.I[1][1])} · ${sci(ip.I[2][2])} kg·m²`)),
+    h('label', { class: 'field' }, h('span', null, 'Masa real medida (opcional)'), h('div', { class: 'unit-input' }, massIn, h('em', null, 'g'))),
+    an.watertight ? null : h('div', { class: 'note warn' }, `La malla no está cerrada (${an.open} bordes abiertos). La masa y la inercia son aproximadas; si puedes, pésala y escribe la masa real.`)));
+
+  // Unidades
+  const useg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Unidades del archivo' });
+  for (const u of UNITS) useg.append(h('button', { 'aria-pressed': String(Math.abs(p.unit - u.v) < 1e-12), onclick: () => { p.unit = u.v; commit(); fitView(); renderInspector(); } }, u.l));
+  out.push(sec('Unidades del archivo', useg, h('div', { class: 'hint' }, 'Si la pieza se ve enorme o diminuta, cambia la unidad. Hazlo antes de crear sus uniones.')));
+
+  // Posición y jerarquía
+  if (root) {
+    const rotBtn = (ax, l) => h('button', { class: 'btn sm', onclick: () => rotateRoot(p, ax) }, l);
+    out.push(sec('Posición',
+      h('div', { class: 'row' }, rotBtn(EX, 'Girar 90° X'), rotBtn(EY, 'Girar 90° Y'), rotBtn(EZ, 'Girar 90° Z')),
+      h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => dropToFloor(p, false) }, 'Poner en el piso'), h('button', { class: 'btn sm', onclick: () => dropToFloor(p, true) }, 'Llevar al origen')),
+      h('div', { class: 'hint' }, 'También puedes usar Mover ', h('span', { class: 'kbd' }, 'G'), ' y Rotar ', h('span', { class: 'kbd' }, 'R'), '. Se mueve junto con todo lo que tenga unido.')));
+  } else {
+    out.push(sec('Posición', h('div', { class: 'rel' }, 'Unida a', h('button', { class: 'chip', onclick: () => select({ type: 'part', id: pj.parent }) }, S.parts.get(pj.parent).name), 'con', h('button', { class: 'chip', onclick: () => select({ type: 'joint', id: pj.id }) }, pj.name)),
+      h('div', { class: 'hint' }, 'Su posición la define la unión. Ajusta el encaje desde la unión.')));
+  }
+  const isBase = root && S.baseId === p.id;
+  const hier = [];
+  if (isBase) {
+    hier.push(h('div', { class: 'note ok' }, 'Es la base del robot: el origen del URDF y la raíz del árbol.'));
+    if (p.name !== 'base_link') hier.push(h('button', { class: 'btn sm', onclick: () => { const taken = new Set([...S.parts.values()].filter((o) => o !== p).map((o) => o.name)); p.name = uniqueName('base_link', taken); commit(); renderUI(); } }, 'Renombrar a base_link (convención ROS)'));
+  } else {
+    hier.push(h('button', { class: 'btn sm', onclick: () => { makeBase(p.id); commit(); renderUI(); toast(`${p.name} es ahora la base del robot.`); } }, 'Hacer base del robot'));
+    hier.push(h('div', { class: 'hint' }, 'La base es la pieza fija de donde cuelga todo el árbol de uniones.'));
+  }
+  out.push(sec('Jerarquía', ...hier));
+  out.push(sec(null, h('button', { class: 'btn sm danger', onclick: deleteSelected }, iconEl('trash'), 'Eliminar pieza')));
+  return out;
+}
+function rotateRoot(p, axis) {
+  const box = sceneBox(subtree(p.id));
+  const c = box.getCenter(V3());
+  const D = T4(c.x, c.y, c.z).multiply(M4().makeRotationAxis(axis, Math.PI / 2)).multiply(T4(-c.x, -c.y, -c.z));
+  applySubtreeDelta(p.id, D);
+  commit(); needsRender = true;
+}
+function dropToFloor(p, center) {
+  WORLD = computeWorld(true);
+  const box = sceneBox(subtree(p.id));
+  const c = box.getCenter(V3());
+  const D = T4(center ? -c.x : 0, center ? -c.y : 0, -box.min.z);
+  applySubtreeDelta(p.id, D);
+  commit(); fitView();
+}
+
+function inspectJoint(j) {
+  const parent = S.parts.get(j.parent), child = S.parts.get(j.child);
+  const out = [];
+  out.push(sec(null, h('div', { class: 'insp-head' }, h('span', { class: 'eyebrow' }, 'Unión · joint'), renameInput(j, 'joint'),
+    h('div', { class: 'rel' },
+      h('button', { class: 'chip', title: 'Pieza padre', onclick: () => select({ type: 'part', id: parent.id }) }, parent.name, h('small', null, 'padre')),
+      '→',
+      h('button', { class: 'chip', title: 'Pieza hija', onclick: () => select({ type: 'part', id: child.id }) }, child.name, h('small', null, 'hija'))))));
+
+  // Grado de libertad
+  const grid = h('div', { class: 'dof' });
+  const dofBtn = (kind, axis) => {
+    const pressed = kind === 'rot' ? (j.type === 'revolute' || j.type === 'continuous') && j.axis === axis : j.type === 'prismatic' && j.axis === axis;
+    const sub = kind === 'rot' ? (j.frameMode === 'world' ? RPY[axis] : axis === 'z' ? 'eje agujero' : RPY[axis]) : 'desliza';
+    const b = h('button', { 'aria-pressed': String(pressed), style: `--ax:var(--${axis})`, title: `${kind === 'rot' ? 'Girar alrededor de' : 'Deslizar sobre'} ${AX_NAMES[axis]}` },
+      h('b', null, AX_NAMES[axis]), h('span', null, sub));
+    b.addEventListener('click', () => setDOF(j, kind, axis));
+    b.addEventListener('pointerenter', (ev) => { if (ev.pointerType === 'touch') return; S.preview = { jointId: j.id, type: kind === 'lin' ? 'prismatic' : j.type === 'continuous' ? 'continuous' : 'revolute', axis, sign: j.sign, t0: clock }; needsRender = true; });
+    b.addEventListener('pointerleave', () => { if (S.preview && S.preview.jointId === j.id && !S.preview.until) { S.preview = null; needsRender = true; } });
+    return b;
+  };
+  grid.append(h('span', { class: 'row-l' }, 'Gira'), dofBtn('rot', 'x'), dofBtn('rot', 'y'), dofBtn('rot', 'z'));
+  grid.append(h('span', { class: 'row-l' }, 'Desliza'), dofBtn('lin', 'x'), dofBtn('lin', 'y'), dofBtn('lin', 'z'));
+  const fixedBtn = h('button', { class: 'btn sm fixed-btn', 'aria-pressed': String(j.type === 'fixed'), onclick: () => setDOF(j, 'fixed') }, iconEl('lock'), 'Fija (sin movimiento)');
+  const cont = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: j.type === 'continuous', disabled: !(j.type === 'revolute' || j.type === 'continuous') }), 'Giro continuo (ruedas)');
+  cont.querySelector('input').addEventListener('change', (ev) => { j.type = ev.target.checked ? 'continuous' : 'revolute'; buildJointVis(j); commit(); renderUI(); autoPreview(j); });
+  const fseg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Ejes de referencia' });
+  for (const [k, l] of [['world', 'Ejes del mundo'], ['hole', 'Ejes del agujero']]) {
+    fseg.append(h('button', { 'aria-pressed': String(j.frameMode === k), onclick: () => { if (j.frameMode === k) return; setFrameMode(j, k); buildJointVis(j); commit(); renderUI(); autoPreview(j); } }, l));
+  }
+  const axTools = h('div', { class: 'row' },
+    h('button', { class: 'btn sm', title: 'Cambia el sentido positivo del movimiento', onclick: () => { j.sign = -j.sign; buildJointVis(j); commit(); renderUI(); autoPreview(j); } }, iconEl('flip'), 'Invertir sentido'),
+    j.frameMode === 'hole' ? h('button', { class: 'btn sm', title: 'Gira los ejes X/Y del marco 90° alrededor del eje del agujero', onclick: () => { j.spin = (j.spin + 90) % 360; buildJointVis(j); commit(); renderUI(); } }, iconEl('spin'), 'Girar ejes 90°') : null);
+  out.push(sec('Grado de libertad', grid, h('div', { class: 'row' }, fixedBtn, cont),
+    h('div', { class: 'note' }, `Esta unión ${dofWords(j)}. `, j.frameMode === 'hole' ? 'El eje Z (azul) sale por el centro del agujero.' : 'Los ejes son los del mundo: X rojo, Y verde, Z azul.'),
+    h('div', { class: 'field' }, h('span', null, 'Referencia de los ejes'), fseg), axTools));
+
+  if (j.type !== 'fixed') {
+    // Probar
+    const r = rangeAttrs(j);
+    const range = h('input', { type: 'range', min: r.min, max: r.max, step: r.step, value: (j.q * r.f).toFixed(1), 'data-jrange': j.id, 'aria-label': 'Posición de la unión' });
+    range.addEventListener('input', () => { if (S.play) stopPlay(); S.preview = null; j.q = Number(range.value) / r.f; needsRender = true; liveJointValues(true); });
+    range.addEventListener('change', () => commit());
+    const playing = S.play && S.play.jointId === j.id;
+    const play = h('button', { class: 'btn sm icon-btn', id: 'playBtn', title: playing ? 'Pausar' : 'Animar entre los límites', html: svgIcon(playing ? 'pause' : 'play'), onclick: () => togglePlay(j) });
+    out.push(sec('Probar movimiento',
+      h('div', { class: 'qline' }, play, h('div', { class: 'grow', style: 'flex:1;min-width:0' }, range), h('span', { class: 'val', 'data-jval': j.id }, qText(j, j.q))),
+      h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => { stopPlay(); j.q = 0; needsRender = true; liveJointValues(true); commit(); } }, 'Ir a 0'),
+        h('button', { class: 'btn sm', onclick: () => { stopPlay(); j.q = j.home; needsRender = true; liveJointValues(true); commit(); } }, iconEl('home'), 'Ir a home'))));
+
+    // Límites
+    const L = lim(j), lin = isLin(j);
+    const f = lin ? 1000 : 1 / DEG, u = lin ? 'mm' : '°';
+    const acts = lin ? ACT_LIN : ACT_ROT;
+    const asel = h('select', { class: 'select', value: L.act || 'manual', 'aria-label': 'Actuador' }, acts.map((a) => h('option', { value: a.id }, a.n)));
+    asel.addEventListener('change', () => { const a = acts.find((x) => x.id === asel.value); L.act = a.id; if (a.e != null) { L.effort = a.e; L.vel = a.v; } commit(); renderInspector(); });
+    const limKids = [];
+    if (j.type !== 'continuous') {
+      limKids.push(h('div', { class: 'grid2' },
+        numField('Mínimo', (L.lo * f).toFixed(1), u, (v) => { L.lo = v / f; fixLimits(j); }, { step: lin ? '1' : '5' }),
+        numField('Máximo', (L.hi * f).toFixed(1), u, (v) => { L.hi = v / f; fixLimits(j); }, { step: lin ? '1' : '5' })));
+      if (L.lo >= L.hi) limKids.push(h('div', { class: 'note warn' }, 'El mínimo debe ser menor que el máximo.'));
+    }
+    limKids.push(h('label', { class: 'field' }, h('span', null, 'Actuador (llena fuerza y velocidad)'), asel));
+    limKids.push(h('div', { class: 'grid2' },
+      numField(lin ? 'Fuerza máx.' : 'Torque máx.', L.effort, lin ? 'N' : 'N·m', (v) => { L.effort = Math.max(0, v); L.act = 'manual'; commit(); renderInspector(); }, { step: '0.1', min: '0' }),
+      numField('Velocidad máx.', L.vel, lin ? 'm/s' : 'rad/s', (v) => { L.vel = Math.max(0, v); L.act = 'manual'; commit(); renderInspector(); }, { step: '0.1', min: '0' })));
+    out.push(sec(j.type === 'continuous' ? 'Actuador' : 'Límites y actuador', ...limKids));
+
+    // Home
+    out.push(sec('Home',
+      h('dl', { class: 'stats' }, h('dt', null, 'Posición home'), h('dd', null, qText(j, j.home))),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn sm', onclick: () => { stopPlay(); j.home = j.q; commit(); renderInspector(); toast(`Home de ${j.name}: ${qText(j, j.home)}`); } }, 'Usar posición actual como home')),
+      h('div', { class: 'hint' }, 'Mueve la unión con el slider y guarda esa posición. Se exporta como pose "home" para RViz y MoveIt.')));
+  }
+
+  // Encaje
+  if (j.mate) {
+    const m = j.mate;
+    const flip = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: m.flip }), 'Invertir encaje (voltear la pieza hija)');
+    flip.querySelector('input').addEventListener('change', (ev) => { m.flip = ev.target.checked; applyMate(j); commit(); needsRender = true; });
+    const ang = h('input', { type: 'range', min: '-180', max: '180', step: '1', value: m.angle, 'aria-label': 'Ángulo de encaje' });
+    const angV = h('span', { class: 'val mono', style: 'min-width:52px;text-align:right' }, `${m.angle.toFixed(0)}°`);
+    ang.addEventListener('input', () => { m.angle = Number(ang.value); angV.textContent = `${m.angle.toFixed(0)}°`; applyMate(j); needsRender = true; });
+    ang.addEventListener('change', () => commit());
+    const step = (d) => { let a = m.angle + d; if (a > 180) a -= 360; if (a < -180) a += 360; m.angle = a; applyMate(j); commit(); needsRender = true; renderInspector(); };
+    out.push(sec('Ajustar encaje',
+      h('div', { class: 'hint' }, 'Gira la pieza hija alrededor del eje o sepárala para que quede como en tu diseño.'),
+      h('div', { class: 'qline' }, h('div', { style: 'flex:1;min-width:0' }, ang), angV),
+      h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => step(-90) }, '−90°'), h('button', { class: 'btn sm', onclick: () => step(90) }, '+90°')),
+      numField('Separación entre piezas', (m.offset * 1000).toFixed(2), 'mm', (v) => { m.offset = v / 1000; applyMate(j); commit(); needsRender = true; }, { step: '0.5' }),
+      flip));
+  }
+  out.push(sec(null, h('div', { class: 'row' },
+    h('button', { class: 'btn sm', onclick: () => startJointTool(j.id) }, iconEl('target'), 'Reubicar centro'),
+    h('button', { class: 'btn sm danger', onclick: deleteSelected }, iconEl('trash'), 'Eliminar unión'))));
+  return out;
+}
+function fixLimits(j) {
+  const [lo, hi] = qRange(j);
+  j.q = clamp(j.q, lo, hi); j.home = clamp(j.home, lo, hi);
+  needsRender = true; commit(); renderInspector(); renderJointsPanel();
+}
+function setDOF(j, kind, axis) {
+  const wasLin = isLin(j), wasFixed = j.type === 'fixed';
+  if (kind === 'fixed') j.type = 'fixed';
+  else if (kind === 'rot') j.type = j.type === 'continuous' ? 'continuous' : 'revolute';
+  else j.type = 'prismatic';
+  if (axis) j.axis = axis;
+  if (wasLin !== isLin(j) || wasFixed) { j.q = 0; j.home = 0; }
+  if (j.type === 'fixed') { j.q = 0; j.home = 0; }
+  S.preview = null; stopPlay();
+  buildJointVis(j);
+  commit(); renderUI();
+  autoPreview(j);
+}
+
+function renderUI() {
+  rebuildIndex();
+  $('#robotName').value = S.robotName;
+  $('#exampleBadge').hidden = !S.isExample;
+  renderUnitSeg(); renderTree(); renderJointsPanel(); renderInspector(); renderToolbar(); renderBanner();
+  updateUndoButtons(); updateGizmo(); styleAll(); setIdleStatus();
+  needsRender = true;
+}
+
+// ── Avisos ─────────────────────────────────────────────────────────
+function toast(msg, kind = 'info', ms = 4200, action = null) {
+  const box = $('#toasts');
+  const el = h('div', { class: `toast ${kind === 'info' ? '' : kind}`, role: kind === 'err' ? 'alert' : 'status' }, h('span', null, msg),
+    action ? h('button', { onclick: () => { el.remove(); action.fn(); } }, action.label) : null);
+  box.append(el);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => el.remove(), ms);
+}
+
+// Si algo truena, ofrece reportarlo (una vez por minuto como máximo).
+let lastErrToast = 0;
+function onAppError() {
+  const now = Date.now();
+  if (now - lastErrToast < 60000) return;
+  lastErrToast = now;
+  toast('Algo falló en la página. ¿Me ayudas a arreglarlo?', 'err', 10000, { label: 'Reportar', fn: () => openReport('bug') });
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  04 · física, exportación URDF / paquete ROS 2, proyecto e inicio
+// ════════════════════════════════════════════════════════════════════
+
+// ── Masa e inercia ─────────────────────────────────────────────────
+function inertialOf(p) {
+  const an = pool.get(p.id).an;
+  const u = p.unit;
+  const m = MATERIALS[p.mat] || MATERIALS.pla;
+  const rho = p.mat === 'custom' ? Math.max(1, p.density || 1000) : m.rho;
+  const size = an.size.clone().multiplyScalar(u);
+  let Vs = an.V * u * u * u;          // con signo
+  let V = Math.abs(Vs);
+  const area = an.area * u * u;
+  const boxApprox = !(V > 1e-12) || V > size.x * size.y * size.z * 1.05;
+  if (boxApprox) V = Math.max(size.x * size.y * size.z * 0.5, 1e-12);
+  let massCalc;
+  if (m.printed) {
+    const shell = Math.min(V, area * ((p.walls ?? 1.2) / 1000));
+    massCalc = rho * (shell + (clamp(p.infill ?? 20, 0, 100) / 100) * (V - shell));
+  } else massCalc = rho * V;
+  massCalc = Math.max(massCalc, 1e-6);
+  const mass = p.massOverride > 0 ? p.massOverride : massCalc;
+  let com, I;
+  if (!boxApprox) {
+    com = an.com.clone().multiplyScalar(u);
+    const k = mass / Vs;                 // densidad efectiva (signo cancela el de C)
+    const u5 = Math.pow(u, 5);
+    const [xx, yy, zz, xy, xz, yz] = an.Ccom.map((c) => c * u5);
+    const tr = xx + yy + zz;
+    I = [[k * (tr - xx), -k * xy, -k * xz], [-k * xy, k * (tr - yy), -k * yz], [-k * xz, -k * yz, k * (tr - zz)]];
+  } else {
+    com = an.bbox.getCenter(V3()).multiplyScalar(u);
+    const { x, y, z } = size;
+    I = [[mass / 12 * (y * y + z * z), 0, 0], [0, mass / 12 * (x * x + z * z), 0], [0, 0, mass / 12 * (x * x + y * y)]];
+  }
+  return { mass, massCalc, com, I, V, rho, approx: boxApprox || !an.watertight };
+}
+
+// ── URDF ───────────────────────────────────────────────────────────
+function xyzStr(v) { return `${num(v.x)} ${num(v.y)} ${num(v.z)}`; }
+function rpyStr(m) { return rpyOf(m).map((a) => num(a)).join(' '); }
+function originTag(m, ind) {
+  const d = decompose(m);
+  return `${ind}<origin xyz="${xyzStr(d.p)}" rpy="${rpyStr(m)}"/>`;
+}
+
+function buildExport(o) {
+  rebuildIndex();
+  const parts = [...S.parts.values()];
+  if (!parts.length) return { error: 'Sube al menos una pieza para generar el URDF.' };
+  const robot = rosName(S.robotName, 'robot');
+  const pkg = rosName(o.pkg || `${robot}_description`, 'robot_description');
+  const warnings = [];
+  const roots = parts.filter((p) => isRoot(p.id)).map((p) => p.id);
+  const mainId = S.baseId && roots.includes(S.baseId) ? S.baseId : largestRoot();
+
+  // Nombres únicos
+  const linkName = new Map(), jointName = new Map();
+  const tl = new Set(), tj = new Set();
+  for (const p of parts) { const n = uniqueName(rosName(p.name, 'link'), tl); tl.add(n); linkName.set(p.id, n); }
+  if (o.worldLink && tl.has('world')) warnings.push({ k: 'warn', t: 'Hay una pieza llamada "world"; renómbrala para usar el link world.' });
+  for (const j of S.joints.values()) { const n = uniqueName(rosName(j.name, 'joint'), tj); tj.add(n); jointName.set(j.id, n); }
+
+  const qOf = (j) => (o.homeAsZero && j.type !== 'fixed' ? j.home : 0);
+  const W = computeWorld(false, qOf);
+  const L = new Map();
+  const order = [];      // ids de piezas en orden de recorrido
+  const joints = [];     // { j | null, parent, child, origin }
+  const visit = (pid) => {
+    order.push(pid);
+    for (const j of S.childrenOf.get(pid) || []) {
+      const Lc = W.get(j.parent).clone().multiply(frameMat(j)).multiply(motion(j, qOf(j)));
+      L.set(j.child, Lc);
+      joints.push({ j, parent: pid, child: j.child, origin: inv(L.get(pid)).multiply(Lc) });
+      visit(j.child);
+    }
+  };
+  L.set(mainId, M4());
+  visit(mainId);
+  const extra = roots.filter((r) => r !== mainId);
+  for (const r of extra) {
+    L.set(r, W.get(r).clone());
+    const name = uniqueName(`${linkName.get(r)}_fijo`, tj); tj.add(name);
+    joints.push({ j: null, name, parent: mainId, child: r, origin: inv(L.get(mainId)).multiply(L.get(r)) });
+    visit(r);
+  }
+  if (extra.length) warnings.push({ k: 'warn', t: `${extra.length === 1 ? 'Una pieza quedó' : `${extra.length} piezas quedaron`} sin unir (${extra.map((r) => linkName.get(r)).join(', ')}). Se fijaron a la base con una unión fija en su posición actual.` });
+
+  // Materiales (colores)
+  const colorName = (p) => `${p.mat}_${p.color.replace('#', '').toLowerCase()}`;
+  const colors = new Map();
+  for (const p of parts) colors.set(colorName(p), p.color);
+  const rgba = (hex) => { const c = new THREE.Color(hex); return `${num(c.r, 3)} ${num(c.g, 3)} ${num(c.b, 3)} 1`; };
+  const meshFile = (p) => `meshes/${linkName.get(p.id)}.stl`;
+
+  const lines = [];
+  lines.push('<?xml version="1.0"?>');
+  lines.push(`<!-- ${robot}: URDF generado con Eslabón URDF (${new Date().toISOString().slice(0, 10)}). -->`);
+  lines.push('<!-- Unidades: metros, radianes, kilogramos. Masa e inercia calculadas a partir de las mallas y los materiales. -->');
+  lines.push(`<robot name="${escXml(robot)}">`);
+  lines.push('');
+  for (const [n, hex] of colors) lines.push(`  <material name="${n}">\n    <color rgba="${rgba(hex)}"/>\n  </material>`);
+  lines.push('');
+  if (o.worldLink) {
+    lines.push('  <link name="world"/>');
+    lines.push(`  <joint name="world_a_${linkName.get(mainId)}" type="fixed">\n    <parent link="world"/>\n    <child link="${linkName.get(mainId)}"/>\n    <origin xyz="0 0 0" rpy="0 0 0"/>\n  </joint>`);
+    lines.push('');
+  }
+  let massTotal = 0;
+  for (const id of order) {
+    const p = S.parts.get(id);
+    const ip = inertialOf(p);
+    massTotal += ip.mass;
+    const T = inv(L.get(id)).multiply(W.get(id));       // malla → link
+    const R = rot3(T);
+    const I = matMul3(matMul3(R, ip.I), tr3(R));
+    const com = ip.com.clone().applyMatrix4(T);
+    const u = num(p.unit, 6);
+    const mesh = `<mesh filename="package://${pkg}/${meshFile(p)}" scale="${u} ${u} ${u}"/>`;
+    lines.push(`  <!-- ${(MATERIALS[p.mat] || MATERIALS.pla).n}${MATERIALS[p.mat]?.printed ? `, relleno ${p.infill}%` : ''}${p.massOverride ? ', masa medida' : ''} -->`);
+    lines.push(`  <link name="${linkName.get(id)}">`);
+    lines.push('    <inertial>');
+    lines.push(`      <origin xyz="${xyzStr(com)}" rpy="0 0 0"/>`);
+    lines.push(`      <mass value="${num(ip.mass, 6)}"/>`);
+    lines.push(`      <inertia ixx="${sci(I[0][0])}" ixy="${sci(I[0][1])}" ixz="${sci(I[0][2])}" iyy="${sci(I[1][1])}" iyz="${sci(I[1][2])}" izz="${sci(I[2][2])}"/>`);
+    lines.push('    </inertial>');
+    lines.push('    <visual>');
+    lines.push(originTag(T, '      '));
+    lines.push(`      <geometry>\n        ${mesh}\n      </geometry>`);
+    lines.push(`      <material name="${colorName(p)}"/>`);
+    lines.push('    </visual>');
+    if (o.collision === 'mesh') {
+      lines.push('    <collision>');
+      lines.push(originTag(T, '      '));
+      lines.push(`      <geometry>\n        ${mesh}\n      </geometry>`);
+      lines.push('    </collision>');
+    } else if (o.collision === 'box') {
+      const an = pool.get(id).an;
+      const c = an.bbox.getCenter(V3()).multiplyScalar(p.unit);
+      const s = an.size.clone().multiplyScalar(p.unit);
+      lines.push('    <collision>');
+      lines.push(originTag(T.clone().multiply(T4(c.x, c.y, c.z)), '      '));
+      lines.push(`      <geometry>\n        <box size="${num(Math.max(s.x, 1e-4))} ${num(Math.max(s.y, 1e-4))} ${num(Math.max(s.z, 1e-4))}"/>\n      </geometry>`);
+      lines.push('    </collision>');
+    }
+    lines.push('  </link>');
+    lines.push('');
+  }
+  const movable = [];
+  for (const it of joints) {
+    const j = it.j;
+    const name = j ? jointName.get(j.id) : it.name;
+    const type = j ? j.type : 'fixed';
+    lines.push(`  <joint name="${name}" type="${type}">`);
+    lines.push(`    <parent link="${linkName.get(it.parent)}"/>`);
+    lines.push(`    <child link="${linkName.get(it.child)}"/>`);
+    lines.push(originTag(it.origin, '    '));
+    if (j && type !== 'fixed') {
+      const a = axisVec(j);
+      lines.push(`    <axis xyz="${num(a.x)} ${num(a.y)} ${num(a.z)}"/>`);
+      const l = lim(j);
+      const shift = o.homeAsZero ? j.home : 0;
+      if (type === 'continuous') lines.push(`    <limit effort="${num(l.effort, 4)}" velocity="${num(l.vel, 4)}"/>`);
+      else lines.push(`    <limit lower="${num(Math.min(l.lo, l.hi) - shift)}" upper="${num(Math.max(l.lo, l.hi) - shift)}" effort="${num(l.effort, 4)}" velocity="${num(l.vel, 4)}"/>`);
+      movable.push({ name, home: o.homeAsZero ? 0 : j.home, j });
+      if (type !== 'continuous' && l.lo >= l.hi) warnings.push({ k: 'warn', t: `${name}: el límite mínimo no es menor que el máximo.` });
+      if (!(l.effort > 0) || !(l.vel > 0)) warnings.push({ k: 'warn', t: `${name}: torque/fuerza o velocidad en 0. Gazebo y MoveIt necesitan valores mayores a cero.` });
+    }
+    lines.push('  </joint>');
+    lines.push('');
+  }
+  lines.push('</robot>');
+  const urdf = lines.join('\n').replace(/\n{3,}/g, '\n\n');
+
+  // Avisos de mallas
+  const open = parts.filter((p) => !pool.get(p.id).an.watertight && !p.massOverride);
+  if (open.length) warnings.push({ k: 'warn', t: `Mallas no cerradas: ${open.map((p) => linkName.get(p.id)).join(', ')}. Su masa e inercia son aproximadas.` });
+  const heavy = parts.filter((p) => pool.get(p.id).an.nT > 300000);
+  if (heavy.length) warnings.push({ k: 'warn', t: `Mallas pesadas (${heavy.map((p) => linkName.get(p.id)).join(', ')}): RViz y Gazebo irán lentos. Usa colisión "caja" o simplifica el STL.` });
+  if (!S.joints.size && parts.length > 1) warnings.push({ k: 'warn', t: 'No hay uniones: todas las piezas quedarán fijas a la base.' });
+  if (!warnings.length) warnings.push({ k: 'ok', t: 'Todo listo: árbol válido, una sola raíz y límites coherentes.' });
+
+  // Árbol estilo check_urdf
+  const tree = [`robot name is: ${robot}`, '---------- Successfully Parsed XML ---------------'];
+  const kids = (id) => joints.filter((x) => x.parent === id);
+  tree.push(`root Link: ${o.worldLink ? 'world' : linkName.get(mainId)} has ${o.worldLink ? 1 : kids(mainId).length} child(ren)`);
+  const walkT = (id, depth) => {
+    kids(id).forEach((x, i) => {
+      tree.push(`${'    '.repeat(depth)}child(${i + 1}):  ${linkName.get(x.child)}`);
+      walkT(x.child, depth + 1);
+    });
+  };
+  if (o.worldLink) { tree.push(`    child(1):  ${linkName.get(mainId)}`); walkT(mainId, 2); } else walkT(mainId, 1);
+
+  return { robot, pkg, urdf, warnings, tree: tree.join('\n'), movable, linkName, order, massTotal, meshFile };
+}
+
+function packageFiles(o, ex) {
+  const { robot, pkg, urdf, movable, linkName, meshFile } = ex;
+  const files = [];
+  const add = (path, data) => files.push({ path: `${pkg}/${path}`, data });
+  add(`urdf/${robot}.urdf`, urdf);
+  for (const p of S.parts.values()) add(meshFile(p), new Uint8Array(pool.get(p.id).stl));
+  add('package.xml', `<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>${pkg}</name>
+  <version>0.1.0</version>
+  <description>Descripción URDF de ${robot} (generada con Eslabón URDF).</description>
+  <maintainer email="tu@correo.com">Tu nombre</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
+`);
+  add('CMakeLists.txt', `cmake_minimum_required(VERSION 3.8)
+project(${pkg})
+
+find_package(ament_cmake REQUIRED)
+
+install(
+  DIRECTORY urdf meshes launch config rviz
+  DESTINATION share/\${PROJECT_NAME}
+)
+
+ament_package()
+`);
+  const homePy = movable.filter((m) => Math.abs(m.home) > 1e-9);
+  const zeros = homePy.length ? `{\n${homePy.map((m) => `        '${m.name}': ${num(m.home, 6)},`).join('\n')}\n    }` : '{}';
+  add('launch/display.launch.py', `# Visualiza ${robot} en RViz con sliders para mover cada articulación.
+#   ros2 launch ${pkg} display.launch.py
+#   ros2 launch ${pkg} display.launch.py gui:=false
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    pkg_share = get_package_share_directory('${pkg}')
+    urdf_path = os.path.join(pkg_share, 'urdf', '${robot}.urdf')
+    with open(urdf_path, 'r') as f:
+        robot_description = f.read()
+    rviz_config = os.path.join(pkg_share, 'rviz', 'display.rviz')
+
+    # Pose "home" inicial de cada articulación (rad o m)
+    home = ${zeros}
+    jsp_params = [{'zeros': home}] if home else []
+
+    gui = LaunchConfiguration('gui')
+    return LaunchDescription([
+        DeclareLaunchArgument('gui', default_value='true',
+                              description='Abrir joint_state_publisher_gui con sliders'),
+        Node(package='robot_state_publisher', executable='robot_state_publisher',
+             parameters=[{'robot_description': robot_description}], output='screen'),
+        Node(package='joint_state_publisher_gui', executable='joint_state_publisher_gui',
+             parameters=jsp_params, condition=IfCondition(gui)),
+        Node(package='joint_state_publisher', executable='joint_state_publisher',
+             parameters=jsp_params, condition=UnlessCondition(gui)),
+        Node(package='rviz2', executable='rviz2', arguments=['-d', rviz_config], output='screen'),
+    ])
+`);
+  add('config/initial_positions.yaml', `# Pose home de ${robot} (radianes para giros, metros para deslizamientos).
+# Útil para ros2_control (initial_value) y como referencia.
+initial_positions:
+${movable.length ? movable.map((m) => `  ${m.name}: ${num(m.home, 6)}`).join('\n') : '  {}'}
+`);
+  if (movable.length) {
+    add(`config/${robot}.srdf`, `<?xml version="1.0"?>
+<!-- Grupo y poses con nombre para MoveIt (puedes completarlo con el MoveIt Setup Assistant). -->
+<robot name="${robot}">
+  <group name="${robot}">
+${movable.map((m) => `    <joint name="${m.name}"/>`).join('\n')}
+  </group>
+  <group_state name="home" group="${robot}">
+${movable.map((m) => `    <joint name="${m.name}" value="${num(m.home, 6)}"/>`).join('\n')}
+  </group_state>
+  <group_state name="cero" group="${robot}">
+${movable.map((m) => `    <joint name="${m.name}" value="0"/>`).join('\n')}
+  </group_state>
+</robot>
+`);
+  }
+  const fixedFrame = o.worldLink ? 'world' : linkName.get(ex.order[0]);
+  const dist = Math.max(0.4, sceneBox().getSize(V3()).length() * 1.8);
+  add('rviz/display.rviz', `Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.1
+      Plane Cell Count: 20
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: false
+      Marker Scale: 0.15
+  Global Options:
+    Fixed Frame: ${fixedFrame}
+    Background Color: 48; 48; 48
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: ${num(dist, 3)}
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: ${num(dist / 6, 3)}
+      Pitch: 0.5
+      Yaw: 0.8
+      Name: Current View
+`);
+  add('README.md', `# ${pkg}
+
+Paquete ROS 2 con la descripción URDF de **${robot}**, generado con Eslabón URDF.
+
+## Contenido
+
+| Archivo | Para qué sirve |
+|---|---|
+| \`urdf/${robot}.urdf\` | Modelo del robot: ${S.parts.size} links, ${S.joints.size} uniones, ${movable.length} grados de libertad |
+| \`meshes/*.stl\` | Mallas originales (escala ${unitLabel([...S.parts.values()][0].unit)} → m dentro del URDF) |
+| \`launch/display.launch.py\` | Abre RViz con \`robot_state_publisher\` y sliders de articulaciones |
+| \`config/initial_positions.yaml\` | Pose home de cada articulación |
+${movable.length ? `| \`config/${robot}.srdf\` | Grupo y poses "home"/"cero" para MoveIt |\n` : ''}| \`rviz/display.rviz\` | Vista de RViz lista |
+
+## Compilar y probar
+
+\`\`\`bash
+cd ~/ros2_ws/src
+unzip ~/Descargas/${pkg}.zip        # o copia la carpeta ${pkg} aquí
+cd ~/ros2_ws
+colcon build --packages-select ${pkg}
+source install/setup.bash
+ros2 launch ${pkg} display.launch.py
+\`\`\`
+
+Verifica el árbol con \`check_urdf src/${pkg}/urdf/${robot}.urdf\` (paquete \`liburdfdom-tools\`).
+
+## Notas
+
+- Masa total estimada: **${fmtMass(ex.massTotal)}**. La masa sale del volumen de cada STL y su material
+  (en piezas impresas: paredes sólidas + porcentaje de relleno). Si pesas tus piezas, pon la masa real en Eslabón y vuelve a exportar.
+- La inercia se calcula integrando la malla; si una malla no está cerrada se aproxima con su caja envolvente.
+- Los límites de torque y velocidad vienen del actuador elegido en cada unión; revísalos con la hoja de datos de tu motor.
+${o.homeAsZero ? '- La pose home se usó como posición cero del URDF.\n' : ''}`);
+  return files;
+}
+
+// ── ZIP (sin dependencias, con deflate nativo cuando existe) ───────
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(u8) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function deflateRaw(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const stream = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch (e) { return null; }
+}
+async function makeZip(files) {
+  const enc = new TextEncoder();
+  const chunks = [], central = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  for (const f of files) {
+    const name = enc.encode(f.path);
+    const data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+    const crc = crc32(data);
+    let comp = await deflateRaw(data), method = 8;
+    if (!comp || comp.length >= data.length) { comp = data; method = 0; }
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, method, true);
+    lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, comp.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    chunks.push(new Uint8Array(lh.buffer), name, comp);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, method, true); ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, comp.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true);
+    ch.setUint16(30, 0, true); ch.setUint16(32, 0, true); ch.setUint16(34, 0, true); ch.setUint16(36, 0, true);
+    ch.setUint32(38, 0, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + comp.length;
+  }
+  const cdSize = central.reduce((s, c) => s + c.length, 0);
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true); eocd.setUint16(8, files.length, true); eocd.setUint16(10, files.length, true);
+  eocd.setUint32(12, cdSize, true); eocd.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, new Uint8Array(eocd.buffer)], { type: 'application/zip' });
+}
+
+// ── Descargas (capacidad del visor de Claude, o enlace normal fuera de él) ─
+let downloadsApi;
+const downloadsReady = (async () => {
+  try { downloadsApi = window.claude && window.claude.use ? await window.claude.use('downloads') : null; }
+  catch (e) { downloadsApi = null; }
+  return downloadsApi;
+})();
+async function saveFile(filename, data) {
+  const api = downloadsApi !== undefined ? downloadsApi : await Promise.race([downloadsReady, new Promise((r) => setTimeout(() => r(null), 1500))]);
+  if (api) {
+    try { await api.save({ filename, data }); toast(`Listo: ${filename}`); return true; }
+    catch (e) {
+      if (e && e.code === 'declined') toast('Descarga cancelada.', 'warn');
+      else if (e && e.code === 'rate_limited') toast('Ya hay una descarga esperando confirmación.', 'warn');
+      else toast(`No se pudo descargar ${filename} aquí. Copia el URDF desde la vista previa.`, 'err', 6000);
+      return false;
+    }
+  }
+  if (window.claude) { toast('La descarga no está disponible en esta vista. Copia el URDF desde la vista previa.', 'err', 6000); return false; }
+  const blob = data instanceof Blob ? data : new Blob([data]);
+  const a = h('a', { href: URL.createObjectURL(blob), download: filename });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return true;
+}
+
+// ── Modal de exportación ───────────────────────────────────────────
+const EXP = { pkg: '', collision: 'mesh', worldLink: false, homeAsZero: false, tab: 'urdf' };
+function highlightXml(src) {
+  const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const re = /(<!--[\s\S]*?-->)|(<\?[\s\S]*?\?>)|(<\/?)([\w:.-]+)((?:\s+[\w:.-]+="[^"]*")*)(\s*\/?>)/g;
+  let out = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    out += esc(src.slice(last, m.index));
+    if (m[1] || m[2]) out += `<span class="c">${esc(m[1] || m[2])}</span>`;
+    else {
+      const attrs = m[5].replace(/(\s+)([\w:.-]+)="([^"]*)"/g, (_, ws, k, v) => `${ws}<span class="a">${esc(k)}</span>=<span class="s">"${esc(v)}"</span>`);
+      out += `${esc(m[3])}<span class="t">${esc(m[4])}</span>${attrs}${esc(m[6])}`;
+    }
+    last = re.lastIndex;
+  }
+  return out + esc(src.slice(last));
+}
+function openExport() {
+  if (!S.parts.size) { toast('Primero sube al menos una pieza.', 'warn'); return; }
+  stopPlay();
+  const modal = $('#exportModal');
+  modal.hidden = false;
+  renderExport();
+  modal.querySelector('.modal-h button')?.focus();
+}
+function closeExport() { const m = $('#exportModal'); m.hidden = true; m.innerHTML = ''; }
+function renderExport() {
+  const modal = $('#exportModal');
+  const ex = buildExport(EXP);
+  modal.innerHTML = '';
+  if (ex.error) { closeExport(); toast(ex.error, 'warn'); return; }
+  const pkgIn = h('input', { class: 'input mono', value: EXP.pkg || ex.pkg, spellcheck: 'false' });
+  pkgIn.addEventListener('change', () => { EXP.pkg = rosName(pkgIn.value, 'robot_description'); renderExport(); });
+  const col = h('select', { class: 'select', value: EXP.collision }, h('option', { value: 'mesh' }, 'Misma malla STL'), h('option', { value: 'box' }, 'Caja envolvente (ligera)'), h('option', { value: 'none' }, 'Sin colisión'));
+  col.addEventListener('change', () => { EXP.collision = col.value; renderExport(); });
+  const chk = (key, label) => {
+    const c = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: EXP[key] }), label);
+    c.querySelector('input').addEventListener('change', (ev) => { EXP[key] = ev.target.checked; renderExport(); });
+    return c;
+  };
+  const files = packageFiles(EXP, ex);
+  const tabs = [['urdf', `${ex.robot}.urdf`], ['tree', 'Árbol'], ['launch', 'display.launch.py'], ['files', 'Paquete']];
+  const code = h('pre', { class: 'code', id: 'exportCode', tabindex: '0' });
+  if (EXP.tab === 'urdf') code.innerHTML = highlightXml(ex.urdf);
+  else if (EXP.tab === 'tree') code.textContent = ex.tree;
+  else if (EXP.tab === 'launch') code.textContent = files.find((f) => f.path.endsWith('display.launch.py')).data;
+  else {
+    const sizes = files.map((f) => `${f.path.padEnd(48)} ${(typeof f.data === 'string' ? new TextEncoder().encode(f.data).length : f.data.length).toLocaleString('es-MX').padStart(10)} B`);
+    code.textContent = `${sizes.join('\n')}\n\n# Compilar y probar\ncd ~/ros2_ws/src && unzip ${ex.pkg}.zip\ncd ~/ros2_ws && colcon build --packages-select ${ex.pkg}\nsource install/setup.bash\nros2 launch ${ex.pkg} display.launch.py`;
+  }
+  const tabBar = h('div', { class: 'tabs', role: 'tablist' }, tabs.map(([k, l]) => h('button', { role: 'tab', 'aria-selected': String(EXP.tab === k), onclick: () => { EXP.tab = k; renderExport(); } }, l)));
+  const copyBtn = h('button', { class: 'btn', onclick: () => copyText(ex.urdf, code) }, iconEl('copy'), 'Copiar URDF');
+  const zipBtn = h('button', { class: 'btn primary', onclick: async () => {
+    zipBtn.disabled = true; zipBtn.lastChild.textContent = 'Preparando…';
+    try { const blob = await makeZip(files); await saveFile(`${ex.pkg}.zip`, blob); }
+    catch (e) { toast('No pude crear el .zip.', 'err'); }
+    zipBtn.disabled = false; zipBtn.lastChild.textContent = 'Descargar paquete ROS 2 (.zip)';
+  } }, iconEl('download'), h('span', null, 'Descargar paquete ROS 2 (.zip)'));
+  const dof = ex.movable.length;
+  modal.append(h('div', { class: 'modal-card' },
+    h('div', { class: 'modal-h' }, h('h2', { id: 'exportTitle' }, 'Generar URDF'),
+      h('span', { class: 'hint' }, `${S.parts.size} links · ${S.joints.size} uniones · ${dof} GDL · ${fmtMass(ex.massTotal)}`),
+      h('button', { class: 'btn sm icon-btn ghost', 'aria-label': 'Cerrar', title: 'Cerrar (Esc)', onclick: closeExport }, iconEl('close'))),
+    h('div', { class: 'modal-opts' },
+      h('label', { class: 'field' }, h('span', null, 'Nombre del paquete'), pkgIn),
+      h('label', { class: 'field' }, h('span', null, 'Colisiones'), col),
+      chk('worldLink', 'Agregar link "world" fijo'),
+      chk('homeAsZero', 'Usar home como posición cero')),
+    h('div', { class: 'modal-body' },
+      h('div', { class: 'modal-main' }, tabBar, code),
+      h('div', { class: 'modal-side' },
+        h('div', { class: 'sec-h' }, 'Revisión'),
+        h('ul', { class: 'warns' }, ex.warnings.map((w) => h('li', { class: `note ${w.k}` }, w.t))),
+        h('div', { class: 'sec-h' }, 'Qué incluye el .zip'),
+        h('div', { class: 'hint' }, 'URDF con masas e inercias, tus STL, launch de RViz con sliders, pose home (YAML y SRDF para MoveIt) y un README con los comandos.'))),
+    h('div', { class: 'modal-f' }, h('span', { class: 'hint' }, '¿El URDF no carga en RViz? ', h('button', { class: 'btn sm ghost', style: 'height:24px;padding:0 6px;color:var(--accent)', onclick: () => { closeExport(); openReport('bug'); } }, 'Repórtalo')), copyBtn, zipBtn)));
+}
+async function copyText(text, fallbackEl) {
+  try { await navigator.clipboard.writeText(text); toast('URDF copiado al portapapeles.'); }
+  catch (e) {
+    if (fallbackEl) { const r = document.createRange(); r.selectNodeContents(fallbackEl); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    toast('Seleccioné el texto: cópialo con Ctrl+C.', 'warn');
+  }
+}
+
+// ── Reportes de errores e ideas ────────────────────────────────────
+const REP = { kind: 'bug', text: '', contact: '', diag: true };
+const REP_KINDS = { bug: ['Error', '[Bug]', 'Error / bug'], idea: ['Idea', '[Idea]', 'Idea o mejora'], q: ['Pregunta', '[Pregunta]', 'Pregunta'] };
+function diagnostics() {
+  let gpu = '';
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  } catch (e) { gpu = 'desconocida'; }
+  const parts = [...S.parts.values()];
+  const tris = parts.reduce((n, p) => n + pool.get(p.id).an.nT, 0);
+  const open = parts.filter((p) => !pool.get(p.id).an.watertight).length;
+  const units = [...new Set(parts.map((p) => unitLabel(p.unit)))].join(', ') || '—';
+  const joints = [...S.joints.values()].map((j) => `${j.type}/${j.axis}${j.sign < 0 ? '-' : ''}/${j.frameMode}${j.mate ? '/encaje' : ''}`).join(', ') || '—';
+  return [
+    `Versión: ${APP.version}`,
+    `Dónde: ${window.claude ? 'artifact de Claude' : (location.host || 'archivo local')}`,
+    `Navegador: ${navigator.userAgent}`,
+    `Pantalla: ${innerWidth}×${innerHeight} @${devicePixelRatio}x · GPU: ${gpu}`,
+    `Proyecto: ${parts.length} piezas, ${S.joints.size} uniones, ${tris.toLocaleString('es-MX')} triángulos, ${open} mallas abiertas${S.isExample ? ' (ejemplo)' : ''}`,
+    `Unidades: ${units}`,
+    `Uniones: ${joints}`,
+    `Errores recientes: ${ERRLOG.length ? '\n' + ERRLOG.map((e) => `  ${e.t} ${e.m}${e.n > 1 ? ` (×${e.n})` : ''}`).join('\n') : 'ninguno'}`,
+  ].join('\n');
+}
+function reportTitle() {
+  const first = REP.text.trim().split('\n')[0].slice(0, 72);
+  return `${REP_KINDS[REP.kind][1]} ${first || 'Reporte desde la página'}`;
+}
+function reportBody(max) {
+  let body = `**Tipo:** ${REP_KINDS[REP.kind][2]}\n\n**Descripción**\n${REP.text.trim() || '(sin descripción)'}\n\n`;
+  if (REP.contact.trim()) body += `**Contacto:** ${REP.contact.trim()}\n\n`;
+  if (REP.diag) body += `**Datos técnicos**\n\`\`\`\n${diagnostics()}\n\`\`\`\n`;
+  if (max && body.length > max) body = `${body.slice(0, max)}\n…(recortado)`;
+  return body;
+}
+const ghIssueUrl = () => `https://github.com/${APP.repo}/issues/new?title=${encodeURIComponent(reportTitle())}&body=${encodeURIComponent(reportBody(6000))}`;
+const mailUrl = () => `mailto:${APP.email}?subject=${encodeURIComponent(`${APP.name}: ${reportTitle()}`)}&body=${encodeURIComponent(reportBody(1600).replace(/\*\*/g, '').replace(/\x60{3}/g, ''))}`;
+
+function openReport(kind) {
+  if (kind) REP.kind = kind;
+  stopPlay();
+  $('#reportModal').hidden = false;
+  renderReport();
+  setTimeout(() => $('#repText')?.focus(), 30);
+}
+function closeReport() { const m = $('#reportModal'); m.hidden = true; m.innerHTML = ''; }
+function renderReport() {
+  const modal = $('#reportModal');
+  modal.innerHTML = '';
+  const ph = {
+    bug: 'Qué hiciste, qué esperabas y qué pasó. Ej.: subí 3 STL en mm y al unir el brazo con la base la pieza quedó volteada.',
+    idea: '¿Qué te gustaría que Eslabón hiciera? Ej.: exportar a xacro, soportar ruedas de un robot móvil…',
+    q: '¿Qué duda tienes sobre Eslabón o sobre tu URDF?',
+  };
+  const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Tipo de reporte' });
+  for (const [k, v] of Object.entries(REP_KINDS)) {
+    seg.append(h('button', { 'aria-pressed': String(REP.kind === k), onclick: () => { REP.kind = k; renderReport(); } }, v[0]));
+  }
+  const gh = h('a', { class: 'btn primary', target: '_blank', rel: 'noopener', href: ghIssueUrl() }, iconEl('github'), 'Enviar en GitHub');
+  const mail = h('a', { class: 'btn', href: mailUrl() }, iconEl('mail'), 'Abrir en mi correo');
+  const diagPre = h('pre', { class: 'diag' }, diagnostics());
+  const refresh = () => { gh.href = ghIssueUrl(); mail.href = mailUrl(); };
+  const ta = h('textarea', { class: 'textarea', id: 'repText', placeholder: ph[REP.kind], 'aria-label': 'Descripción' });
+  ta.value = REP.text;
+  ta.addEventListener('input', () => { REP.text = ta.value; refresh(); });
+  const contact = h('input', { class: 'input', id: 'repContact', value: REP.contact, placeholder: 'Correo, usuario de GitHub o Instagram', autocomplete: 'email' });
+  contact.addEventListener('input', () => { REP.contact = contact.value; refresh(); });
+  const diag = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: REP.diag }), 'Incluir datos técnicos (navegador, número de piezas y errores; tus STL no se envían)');
+  diag.querySelector('input').addEventListener('change', (ev) => { REP.diag = ev.target.checked; refresh(); });
+  const copyAll = h('button', { class: 'btn', onclick: () => copyPlain(`${reportTitle()}\n\n${reportBody()}`, 'Reporte copiado. Pégalo donde prefieras.') }, iconEl('copy'), 'Copiar reporte');
+  modal.append(h('div', { class: 'modal-card narrow' },
+    h('div', { class: 'modal-h' }, h('h2', { id: 'reportTitle' }, 'Reportar un problema'),
+      h('span', { class: 'hint' }, 'Llega directo a quien mantiene Eslabón.'),
+      h('button', { class: 'btn sm icon-btn ghost', 'aria-label': 'Cerrar', title: 'Cerrar (Esc)', onclick: closeReport }, iconEl('close'))),
+    h('div', { class: 'report-body' },
+      seg,
+      h('label', { class: 'field' }, h('span', null, REP.kind === 'bug' ? '¿Qué pasó?' : REP.kind === 'idea' ? 'Tu idea' : 'Tu pregunta'), ta),
+      h('label', { class: 'field' }, h('span', null, 'Cómo contactarte (opcional, para responderte)'), contact),
+      h('div', null, diag, h('details', null, h('summary', null, 'Ver qué se envía'), diagPre)),
+      h('div', { class: 'note' }, 'Para enviarlo en GitHub necesitas una cuenta (es gratis). Si no tienes, usa tu correo o copia el reporte.'),
+      h('div', { class: 'mail-line' }, 'Correo:', h('span', { class: 'addr' }, APP.email),
+        h('button', { class: 'btn sm ghost', onclick: () => copyPlain(APP.email, 'Correo copiado.') }, iconEl('copy'), 'Copiar')),
+      h('div', { class: 'byline' }, `${APP.name} v${APP.version} · hecho por ${APP.author} · `, h('a', { href: APP.authorUrl, target: '_blank', rel: 'noopener' }, 'github.com/flkochu'))),
+    h('div', { class: 'modal-f' }, copyAll, mail, gh)));
+}
+async function copyPlain(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); }
+  catch (e) { toast('No pude copiar automáticamente; selecciona el texto y usa Ctrl+C.', 'warn'); }
+}
+
+// ── Historial (deshacer / rehacer) ─────────────────────────────────
+function snapshot() {
+  return {
+    app: 'eslabon-urdf', v: 1, robotName: S.robotName, baseId: S.baseId, isExample: S.isExample, seq: S.seq, colorIdx: S.colorIdx,
+    parts: [...S.parts.values()].map((p) => ({ id: p.id, name: p.name, fileName: p.fileName, unit: p.unit, rest: p.rest.toArray(), color: p.color, mat: p.mat, density: p.density, infill: p.infill, walls: p.walls, massOverride: p.massOverride })),
+    joints: [...S.joints.values()].map((j) => ({
+      id: j.id, name: j.name, parent: j.parent, child: j.child, type: j.type, axis: j.axis, sign: j.sign,
+      framePos: j.framePos.toArray(), holeQuat: j.holeQuat.toArray(), worldQuat: j.worldQuat.toArray(), spin: j.spin, frameMode: j.frameMode,
+      rot: { ...j.rot }, lin: { ...j.lin }, q: j.q, home: j.home,
+      mate: j.mate ? { Lc: j.mate.Lc.toArray(), Lp: j.mate.Lp.toArray(), flip: j.mate.flip, angle: j.mate.angle, offset: j.mate.offset } : null,
+    })),
+  };
+}
+function restore(s) {
+  stopPlayQuiet();
+  const parts = new Map();
+  for (const sp of s.parts) {
+    if (!pool.has(sp.id)) continue;
+    let p = S.parts.get(sp.id);
+    if (!p) p = newPartObject(sp.id, {});
+    Object.assign(p, { name: sp.name, fileName: sp.fileName, unit: sp.unit, color: sp.color, mat: MATERIALS[sp.mat] ? sp.mat : 'pla', density: sp.density ?? 1000, infill: sp.infill ?? 20, walls: sp.walls ?? 1.2, massOverride: sp.massOverride ?? null });
+    p.rest = M4().fromArray(sp.rest);
+    if (!p.mesh) makePartMesh(p);
+    parts.set(p.id, p);
+  }
+  for (const [id, p] of S.parts) if (!parts.has(id)) removePartMesh(p);
+  S.parts = parts;
+  for (const j of S.joints.values()) removeJointVis(j);
+  S.joints = new Map();
+  for (const sj of s.joints) {
+    if (!parts.has(sj.parent) || !parts.has(sj.child)) continue;
+    const j = newJoint({
+      id: sj.id, name: sj.name, parent: sj.parent, child: sj.child, type: sj.type, axis: sj.axis, sign: sj.sign,
+      framePos: V3().fromArray(sj.framePos), holeQuat: new THREE.Quaternion().fromArray(sj.holeQuat), worldQuat: new THREE.Quaternion().fromArray(sj.worldQuat),
+      spin: sj.spin || 0, frameMode: sj.frameMode, rot: { ...sj.rot }, lin: { ...sj.lin }, q: sj.q || 0, home: sj.home || 0,
+      mate: sj.mate ? { Lc: M4().fromArray(sj.mate.Lc), Lp: M4().fromArray(sj.mate.Lp), flip: sj.mate.flip, angle: sj.mate.angle, offset: sj.mate.offset } : null,
+    });
+    S.joints.set(j.id, j);
+  }
+  S.robotName = s.robotName || 'mi_robot';
+  S.baseId = s.baseId;
+  S.isExample = !!s.isExample;
+  S.colorIdx = s.colorIdx || 0;
+  const ids = [...parts.keys(), ...S.joints.keys()].map((x) => parseInt(String(x).slice(1), 10) || 0);
+  S.seq = Math.max(s.seq || 1, ...ids, 0) + 1;
+  rebuildIndex();
+  for (const j of S.joints.values()) buildJointVis(j);
+  if (S.sel && !(S.sel.type === 'part' ? S.parts.has(S.sel.id) : S.joints.has(S.sel.id))) S.sel = null;
+  renderUI();
+}
+function stopPlayQuiet() { S.play = null; S.preview = null; }
+
+const hist = { stack: [], idx: -1 };
+function commit() {
+  const s = JSON.stringify(snapshot());
+  if (hist.stack[hist.idx] === s) return;
+  hist.stack.splice(hist.idx + 1);
+  hist.stack.push(s);
+  if (hist.stack.length > 80) hist.stack.shift();
+  hist.idx = hist.stack.length - 1;
+  updateUndoButtons();
+  scheduleSave();
+}
+function undo() {
+  if (hist.idx <= 0) return;
+  if (S.jt) endJointTool();
+  hist.idx--; restore(JSON.parse(hist.stack[hist.idx])); scheduleSave();
+}
+function redo() {
+  if (hist.idx >= hist.stack.length - 1) return;
+  if (S.jt) endJointTool();
+  hist.idx++; restore(JSON.parse(hist.stack[hist.idx])); scheduleSave();
+}
+function updateUndoButtons() {
+  $('#btnUndo').disabled = hist.idx <= 0;
+  $('#btnRedo').disabled = hist.idx >= hist.stack.length - 1;
+}
+
+// ── Borrador automático en este navegador (IndexedDB) ──────────────
+const idb = {
+  db: null,
+  async open() {
+    if (this.db) return this.db;
+    this.db = await new Promise((res, rej) => {
+      const r = indexedDB.open('eslabon-urdf', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return this.db;
+  },
+  async op(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('kv', mode);
+      const req = fn(tx.objectStore('kv'));
+      tx.oncomplete = () => res(req && req.result);
+      tx.onerror = () => rej(tx.error);
+      tx.onabort = () => rej(tx.error);
+    });
+  },
+  get(k) { return this.op('readonly', (s) => s.get(k)); },
+  set(k, v) { return this.op('readwrite', (s) => s.put(v, k)); },
+  del(k) { return this.op('readwrite', (s) => s.delete(k)); },
+  keys() { return this.op('readonly', (s) => s.getAllKeys()); },
+};
+let saveTimer = null;
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 1200); }
+async function saveDraft() {
+  try {
+    await idb.set('state', JSON.stringify(snapshot()));
+    for (const p of S.parts.values()) {
+      const e = pool.get(p.id);
+      if (!e.saved) { await idb.set(`stl:${p.id}`, e.stl); e.saved = true; }
+    }
+    const keys = await idb.keys();
+    for (const k of keys) {
+      if (typeof k === 'string' && k.startsWith('stl:') && !S.parts.has(k.slice(4))) {
+        await idb.del(k);
+        const e = pool.get(k.slice(4)); if (e) e.saved = false;
+      }
+    }
+  } catch (e) { /* almacenamiento no disponible: se ignora */ }
+}
+async function restoreDraft() {
+  try {
+    const raw = await Promise.race([idb.get('state'), new Promise((r) => setTimeout(() => r(null), 2500))]);
+    if (!raw) return false;
+    const snap = JSON.parse(raw);
+    if (!snap.parts || !snap.parts.length) return false;
+    for (const sp of snap.parts) {
+      const buf = await idb.get(`stl:${sp.id}`);
+      if (!buf) return false;
+      poolAdd(sp.id, buf, sp.fileName);
+      pool.get(sp.id).saved = true;
+      await tick();
+    }
+    restore(snap);
+    return true;
+  } catch (e) { return false; }
+}
+
+// ── Proyecto (.json) ───────────────────────────────────────────────
+function bufToB64(buf) {
+  const u8 = new Uint8Array(buf); let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function b64ToBuf(b64) {
+  const s = atob(b64); const u8 = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+  return u8.buffer;
+}
+async function saveProject() {
+  if (!S.parts.size) { toast('No hay nada que guardar todavía.', 'warn'); return; }
+  const snap = snapshot();
+  snap.stl = {};
+  for (const p of S.parts.values()) snap.stl[p.id] = bufToB64(pool.get(p.id).stl);
+  await saveFile(`${rosName(S.robotName, 'robot')}.eslabon.json`, JSON.stringify(snap));
+}
+async function openProject(file) {
+  try {
+    const snap = JSON.parse(await file.text());
+    if (snap.app !== 'eslabon-urdf' || !snap.stl) throw new Error('formato');
+    for (const sp of snap.parts) { if (!snap.stl[sp.id]) throw new Error('stl'); poolAdd(sp.id, b64ToBuf(snap.stl[sp.id]), sp.fileName); await tick(); }
+    delete snap.stl;
+    S.sel = null;
+    restore(snap);
+    commit(); fitView(VIEWS.iso);
+    toast(`Abrí ${S.robotName}: ${S.parts.size} piezas, ${S.joints.size} uniones.`);
+  } catch (e) {
+    toast('Ese archivo no es un proyecto de Eslabón válido.', 'err');
+  }
+}
+
+// ── Subir STL ──────────────────────────────────────────────────────
+function clearAll() {
+  if (S.jt) endJointTool();
+  stopPlayQuiet();
+  for (const j of S.joints.values()) removeJointVis(j);
+  for (const p of S.parts.values()) removePartMesh(p);
+  S.joints = new Map(); S.parts = new Map(); S.baseId = null; S.sel = null; S.isExample = false; S.colorIdx = 0;
+  rebuildIndex();
+}
+async function addFiles(fileList) {
+  const files = [...fileList];
+  const proj = files.find((f) => /\.json$/i.test(f.name));
+  if (proj) { await openProject(proj); return; }
+  const stl = files.filter((f) => /\.stl$/i.test(f.name));
+  if (!stl.length) { toast('Solo acepto archivos .stl (o un proyecto .json de Eslabón).', 'warn'); return; }
+  if (S.isExample) {
+    clearAll();
+    S.robotName = 'mi_robot';
+    commit();
+    toast('Quité el robot de ejemplo para empezar con tus piezas.');
+  }
+  const hadBase = !!S.baseId;
+  setStatus(`Analizando ${stl.length} ${stl.length === 1 ? 'pieza' : 'piezas'}…`);
+  await tick();
+  const added = [];
+  for (const f of stl) {
+    try { const buf = await f.arrayBuffer(); added.push(await addPartFromSTL(buf, f.name, S.newUnit)); }
+    catch (e) { logError(`STL ${f.name}: ${e && e.message}`); toast(`No pude leer ${f.name}. ¿Es un STL válido?`, 'err', 8000, { label: 'Reportar', fn: () => openReport('bug') }); }
+    await tick();
+  }
+  if (!added.length) { setIdleStatus(); return; }
+  rebuildIndex();
+  const arranged = maybeArrange(added);
+  if (!hadBase) { S.baseId = null; rebuildIndex(); }
+  const firstTime = S.parts.size === added.length;
+  WORLD = computeWorld(true);
+  const box = sceneBox();
+  const big = box.getSize(V3()).length();
+  if (big > 20 && S.newUnit !== 0.001) toast('Las piezas se ven muy grandes. ¿El archivo estaba en milímetros? Cambia la unidad en el inspector.', 'warn', 7000);
+  else if (big < 0.004) toast('Las piezas se ven diminutas. Prueba con otra unidad (cm o m).', 'warn', 7000);
+  fitView(firstTime ? VIEWS.iso : null);
+  commit();
+  renderUI();
+  toast(`${added.length === 1 ? `Agregué ${added[0].name}` : `Agregué ${added.length} piezas`}.${arranged ? ' Estaban encimadas, así que las acomodé en fila.' : ''}${S.parts.size > 1 ? ' Presiona J para unirlas.' : ''}`, 'info', 5500);
+}
+
+// ── Robot de ejemplo (generado aquí mismo y convertido a STL) ──────
+function exampleParts() {
+  const ext = (shape, depth, seg = 40) => new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: seg });
+  const hole = (x, y, r) => { const p = new THREE.Path(); p.absarc(x, y, r, 0, Math.PI * 2, true); return p; };
+  const toXZ = (g, y0) => { g.rotateX(Math.PI / 2); g.translate(0, y0, 0); return g; }; // perfil XY → plano XZ, extruido en +Y desde y0 - depth
+  const out = [];
+  // base: disco de aluminio con agujero central y 4 de montaje
+  const base = new THREE.Shape(); base.absarc(0, 0, 60, 0, Math.PI * 2, false);
+  base.holes.push(hole(0, 0, 8));
+  for (let k = 0; k < 4; k++) base.holes.push(hole(45 * Math.cos(Math.PI / 4 + k * Math.PI / 2), 45 * Math.sin(Math.PI / 4 + k * Math.PI / 2), 3));
+  out.push({ name: 'base_link', file: 'base.stl', mat: 'al', color: MATERIALS.al.color, geo: ext(base, 16, 48) });
+  // torreta: pie + torre con agujero del hombro
+  const tor = new THREE.Shape();
+  tor.moveTo(-35, 0); tor.lineTo(35, 0); tor.lineTo(35, 10); tor.lineTo(14, 10); tor.lineTo(14, 60);
+  tor.absarc(0, 60, 14, 0, Math.PI, false); tor.lineTo(-14, 10); tor.lineTo(-35, 10); tor.lineTo(-35, 0);
+  tor.holes.push(hole(0, 60, 5));
+  const torG = toXZ(ext(tor, 28), 14); torG.translate(0, 0, 16);
+  out.push({ name: 'torreta', file: 'torreta.stl', mat: 'pla', color: '#3D7DCA', geo: torG });
+  // brazo: eslabón vertical
+  const slot = (len, w, rh) => {
+    const s = new THREE.Shape();
+    s.moveTo(w, 0); s.lineTo(w, len); s.absarc(0, len, w, 0, Math.PI, false); s.lineTo(-w, 0); s.absarc(0, 0, w, Math.PI, Math.PI * 2, false);
+    s.holes.push(hole(0, 0, rh), hole(0, len, rh));
+    return s;
+  };
+  const brazoG = toXZ(ext(slot(110, 12, 5), 8), 22); brazoG.translate(0, 0, 76);
+  out.push({ name: 'brazo', file: 'brazo.stl', mat: 'pla', color: '#E9E7E1', geo: brazoG });
+  // antebrazo: eslabón horizontal
+  const ante = new THREE.Shape();
+  ante.moveTo(0, -10); ante.lineTo(95, -10); ante.absarc(95, 0, 10, -Math.PI / 2, Math.PI / 2, false); ante.lineTo(0, 10); ante.absarc(0, 0, 10, Math.PI / 2, Math.PI * 1.5, false);
+  ante.holes.push(hole(0, 0, 4.5), hole(95, 0, 4.5));
+  const anteG = toXZ(ext(ante, 8), 30); anteG.translate(0, 0, 186);
+  out.push({ name: 'antebrazo', file: 'antebrazo.stl', mat: 'pla', color: '#3D7DCA', geo: anteG });
+  // pinza: horquilla
+  const pz = new THREE.Shape();
+  pz.moveTo(0, -10); pz.lineTo(28, -10); pz.lineTo(28, -16); pz.lineTo(62, -16); pz.lineTo(62, -7); pz.lineTo(38, -7); pz.lineTo(38, 7); pz.lineTo(62, 7);
+  pz.lineTo(62, 16); pz.lineTo(28, 16); pz.lineTo(28, 10); pz.lineTo(0, 10); pz.absarc(0, 0, 10, Math.PI / 2, Math.PI * 1.5, false);
+  pz.holes.push(hole(0, 0, 4.5));
+  const pzG = toXZ(ext(pz, 8), 38); pzG.translate(95, 0, 186);
+  out.push({ name: 'pinza', file: 'pinza.stl', mat: 'petg', color: '#2A9D8F', geo: pzG });
+  return out;
+}
+async function loadExample() {
+  clearAll();
+  const defs = exampleParts();
+  const ids = {};
+  for (const d of defs) {
+    const p = await addPartFromSTL(geometryToBinarySTL(d.geo), d.file, 0.001, { name: d.name, mat: d.mat, color: d.color });
+    ids[d.name] = p.id;
+  }
+  const mk = (name, parent, child, pos, holeAxis, axis, lo, hi, act, home) => {
+    const j = newJoint({ name, parent: ids[parent], child: ids[child] });
+    j.framePos.copy(pos.clone().multiplyScalar(0.001));
+    j.holeQuat.copy(decompose(frameFromZ(V3(), holeAxis)).q);
+    j.frameMode = 'world'; j.worldQuat = new THREE.Quaternion(); j.axis = axis; j.sign = 1;
+    const a = ACT_ROT.find((x) => x.id === act);
+    j.rot = { lo: lo * DEG, hi: hi * DEG, effort: a.e, vel: a.v, act };
+    j.home = home * DEG; j.q = j.home;
+    S.joints.set(j.id, j);
+  };
+  mk('giro_base', 'base_link', 'torreta', V3(0, 0, 16), EZ, 'z', -170, 170, 'ds3218', 0);
+  mk('hombro', 'torreta', 'brazo', V3(0, 14, 76), EY, 'y', -90, 90, 'ds3218', 15);
+  mk('codo', 'brazo', 'antebrazo', V3(0, 22, 186), EY, 'y', -135, 135, 'mg996r', -40);
+  mk('muneca', 'antebrazo', 'pinza', V3(95, 30, 186), EY, 'y', -90, 90, 'sg90', 25);
+  S.robotName = 'brazo_ejemplo';
+  S.baseId = ids.base_link;
+  S.isExample = true;
+  S.sel = null;
+  rebuildIndex();
+  for (const j of S.joints.values()) buildJointVis(j);
+  renderUI();
+  fitView(VIEWS.iso);
+}
+
+// ── Conexión de la interfaz ────────────────────────────────────────
+function wireUI() {
+  $('#btnUndo').innerHTML = svgIcon('undo');
+  $('#btnRedo').innerHTML = svgIcon('redo');
+  $('#btnUndo').onclick = undo;
+  $('#btnRedo').onclick = redo;
+  $('#btnUpload').append(iconEl('upload'), 'Subir STL');
+  $('#btnUpload').onclick = () => $('#fileInput').click();
+  $('#fileInput').onchange = (ev) => { addFiles(ev.target.files); ev.target.value = ''; };
+  $('#projInput').onchange = (ev) => { if (ev.target.files[0]) openProject(ev.target.files[0]); ev.target.value = ''; };
+  $('#btnOpen').prepend(iconEl('upload')); $('#btnOpen').onclick = () => $('#projInput').click();
+  $('#btnSave').prepend(iconEl('download')); $('#btnSave').onclick = saveProject;
+  $('#btnNew').onclick = () => {
+    if (!S.parts.size) return;
+    clearAll(); S.robotName = 'mi_robot'; commit(); renderUI(); fitView(VIEWS.iso);
+    toast('Proyecto vacío. Ctrl+Z lo regresa.');
+  };
+  $('#btnExample').onclick = async () => { await loadExample(); commit(); toast('Cargué el brazo de ejemplo.'); };
+  $('#btnGenerate').onclick = openExport;
+  $('#btnReport').prepend(iconEl('bug'));
+  $('#btnReport').onclick = () => openReport();
+  $('#reportModal').addEventListener('click', (ev) => { if (ev.target.id === 'reportModal') closeReport(); });
+  $('#robotName').addEventListener('change', (ev) => { S.robotName = rosName(ev.target.value, 'robot'); ev.target.value = S.robotName; commit(); renderInspector(); });
+  $('#btnPoseZero').onclick = () => { stopPlay(); for (const j of S.joints.values()) j.q = 0; needsRender = true; liveJointValues(true); commit(); };
+  $('#btnPoseHome').onclick = () => { stopPlay(); for (const j of S.joints.values()) j.q = j.home; needsRender = true; liveJointValues(true); commit(); };
+  $('#btnPoseSaveHome').onclick = () => { stopPlay(); for (const j of S.joints.values()) j.home = j.q; commit(); renderInspector(); toast('Guardé la pose actual como home de todas las articulaciones.'); };
+  renderViews();
+
+  // Arrastrar y soltar
+  let dragDepth = 0;
+  const overlay = $('#dropOverlay');
+  const hasFiles = (ev) => ev.dataTransfer && [...(ev.dataTransfer.types || [])].includes('Files');
+  window.addEventListener('dragenter', (ev) => { if (!hasFiles(ev)) return; ev.preventDefault(); dragDepth++; overlay.hidden = false; });
+  window.addEventListener('dragover', (ev) => { if (!hasFiles(ev)) return; ev.preventDefault(); });
+  window.addEventListener('dragleave', (ev) => { if (!hasFiles(ev)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) overlay.hidden = true; });
+  window.addEventListener('drop', (ev) => { if (!hasFiles(ev)) return; ev.preventDefault(); dragDepth = 0; overlay.hidden = true; addFiles(ev.dataTransfer.files); });
+
+  // Teclado
+  window.addEventListener('keydown', (ev) => {
+    const tag = (ev.target.tagName || '').toLowerCase();
+    if (['input', 'select', 'textarea'].includes(tag)) return;
+    const k = ev.key.toLowerCase();
+    if ((ev.ctrlKey || ev.metaKey) && k === 'z') { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && k === 'y') { ev.preventDefault(); redo(); return; }
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (!$('#reportModal').hidden) { if (k === 'escape') closeReport(); return; }
+    if (!$('#exportModal').hidden) { if (k === 'escape') closeExport(); return; }
+    if (k === 'escape') { if (S.jt) endJointTool(); else if (S.play) stopPlay(); else select(null); }
+    else if (k === 'v') setTool('select');
+    else if (k === 'g') setTool('move');
+    else if (k === 'r') setTool('rotate');
+    else if (k === 'j') setTool('joint');
+    else if (k === 'f') fitView();
+    else if (k === 'delete' || k === 'backspace') { ev.preventDefault(); deleteSelected(); }
+  });
+  $('#exportModal').addEventListener('click', (ev) => { if (ev.target.id === 'exportModal') closeExport(); });
+
+  // Tema claro/oscuro: recolorea la escena 3D
+  const retheme = () => {
+    applyGridColors(); buildGizmo(); buildGrid(gridSize || 1);
+    for (const j of S.joints.values()) buildJointVis(j);
+    for (const g of [snapG, pickG]) g.traverse((o) => { if (o.material) o.material.color.set(cssVar('--accent-fill')); });
+    styleAll(); needsRender = true;
+  };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
+// ── Inicio ─────────────────────────────────────────────────────────
+async function boot() {
+  wireUI();
+  resize();
+  renderUI();
+  requestAnimationFrame(frameLoop);
+  window.__eslabonReady = true;
+  const restored = await restoreDraft();
+  if (restored) {
+    fitView(VIEWS.iso);
+    if (!S.isExample) toast('Recuperé tu proyecto anterior de este navegador.');
+  } else {
+    await loadExample();
+  }
+  commit();
+  setIdleStatus();
+}
+boot();
+
+</script>
+
+</body>
+</html>
