@@ -193,6 +193,9 @@ input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid
 .tree-row.sel { background: var(--accent-soft); }
 .tree-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; font-size: 13px; }
 .tree-row.joint .nm { color: var(--muted); font-size: 12.5px; }
+.tree-row .fz { width: 14px; height: 14px; flex: none; color: var(--accent); display: grid; }
+.tree-row .fz svg { width: 14px; height: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tree-row .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
 .tree-row .guide { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
 .tag {
@@ -507,7 +510,7 @@ try {
 // ── Datos de la app y contacto (cámbialos aquí) ────────────────────
 const APP = {
   name: 'Eslabón URDF',
-  version: '1.1.0',
+  version: '1.2.0',
   repo: 'flkochu/eslabon-urdf',                       // repo de GitHub donde llegan los reportes
   author: 'Adán López Lozano',
   authorUrl: 'https://github.com/flkochu',
@@ -640,6 +643,7 @@ const ICONS = {
   message: '<path d="M4 5.5h16v10.5H10l-6 4.5z"/><path d="M8 9.5h8M8 12.5h5"/>',
   github: '<path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.5a3 3 0 0 0-.9-2.4c3-.3 6.1-1.5 6.1-6.6a5.2 5.2 0 0 0-1.4-3.6 4.8 4.8 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a12.7 12.7 0 0 0-6.6 0C5.8 1 4.7 1.3 4.7 1.3a4.8 4.8 0 0 0-.1 3.6A5.2 5.2 0 0 0 3.2 8.5c0 5.1 3.1 6.3 6.1 6.6a3 3 0 0 0-.9 2.3V21"/>',
   mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>',
+  fuse: '<rect x="3" y="8" width="10.5" height="10.5" rx="2.2"/><rect x="10.5" y="5" width="10.5" height="10.5" rx="2.2"/><path d="M10.5 11.2h3v3.2" stroke-width="2.6"/>',
 };
 function svgIcon(name) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -1223,6 +1227,7 @@ function newPartObject(id, props) {
   return Object.assign({
     id, name: 'pieza', fileName: '', unit: 0.001, rest: M4(), color: PART_COLORS[0], mat: 'pla',
     density: 1000, infill: 20, walls: 1.2, massOverride: null, mesh: null, edges: null,
+    fusedTo: null, fuseMate: null,
   }, props);
 }
 
@@ -1233,15 +1238,18 @@ function styleMesh(p) {
   mat.color.set(p.color);
   mat.metalness = m.metal ? 0.75 : 0.04;
   mat.roughness = m.metal ? 0.32 : 0.58;
-  const sel = S.sel && S.sel.type === 'part' && S.sel.id === p.id;
-  const picked = S.jt && S.jt.first && S.jt.first.partId === p.id;
-  const hov = S.hoverPart === p.id && !sel;
+  const selPart = S.sel && S.sel.type === 'part' && S.parts.has(S.sel.id) ? S.sel.id : null;
+  const sel = selPart === p.id;
+  const selBody = !sel && selPart && hostOf(selPart) === hostOf(p.id);   // misma pieza fusionada
+  const picked = jtPickedIds().has(p.id);
+  const hov = !sel && S.hoverPart && (S.hoverPart === p.id || (hostOf(S.hoverPart) === hostOf(p.id) && !S.jt));
   const accent = new THREE.Color(cssVar('--accent-fill'));
-  mat.emissive.copy(sel || picked ? accent : hov ? accent : new THREE.Color(0x000000));
-  mat.emissiveIntensity = sel || picked ? 0.28 : hov ? 0.12 : 0;
-  p.edges.visible = S.showEdges || sel;
-  p.edges.material.color.set(sel || picked ? cssVar('--accent-fill') : cssVar('--edge'));
-  p.edges.material.opacity = sel || picked ? 1 : 0.45;
+  const strong = sel || picked;
+  mat.emissive.copy(strong || selBody || hov ? accent : new THREE.Color(0x000000));
+  mat.emissiveIntensity = strong ? 0.28 : selBody ? 0.15 : hov ? 0.1 : 0;
+  p.edges.visible = S.showEdges || strong || selBody;
+  p.edges.material.color.set(strong || selBody ? cssVar('--accent-fill') : cssVar('--edge'));
+  p.edges.material.opacity = strong ? 1 : selBody ? 0.6 : 0.45;
   needsRender = true;
 }
 const styleAll = () => S.parts.forEach(styleMesh);
@@ -1273,6 +1281,14 @@ function localCenter(p) { return pool.get(p.id).an.bbox.getCenter(V3()).multiply
 
 // ── Índices de jerarquía ───────────────────────────────────────────
 function rebuildIndex() {
+  // Limpia fusiones: sin anfitriones inexistentes ni cadenas (miembro de un miembro).
+  for (const p of S.parts.values()) {
+    if (!p.fusedTo) continue;
+    let h = p.fusedTo, guard = 0;
+    while (h && S.parts.get(h) && S.parts.get(h).fusedTo && guard++ < 50) h = S.parts.get(h).fusedTo;
+    p.fusedTo = h && S.parts.has(h) && h !== p.id ? h : null;
+    if (!p.fusedTo) p.fuseMate = null;
+  }
   S.parentOf.clear(); S.childrenOf.clear();
   for (const j of S.joints.values()) {
     S.parentOf.set(j.child, j);
@@ -1280,14 +1296,30 @@ function rebuildIndex() {
     S.childrenOf.get(j.parent).push(j);
   }
   if (S.baseId && !S.parts.has(S.baseId)) S.baseId = null;
-  if (S.baseId) S.baseId = rootOf(S.baseId);
+  if (S.baseId) S.baseId = rootOf(hostOf(S.baseId));
   if (!S.baseId && S.parts.size) S.baseId = largestRoot();
 }
-const isRoot = (id) => !S.parentOf.has(id);
+const isRoot = (id) => !S.parentOf.has(id) && !(S.parts.get(id) && S.parts.get(id).fusedTo);
+// Cuerpos: piezas fusionadas que forman un solo link. El "host" es la pieza que da nombre al link.
+const hostOf = (id) => (S.parts.get(id) && S.parts.get(id).fusedTo) || id;
+const membersOf = (h) => [...S.parts.values()].filter((p) => p.fusedTo === h).map((p) => p.id);
+const bodyParts = (h) => [h, ...membersOf(h)];
+function jtPickedIds() {
+  const out = new Set();
+  if (!S.jt || !S.jt.first) return out;
+  const f = S.jt.first;
+  if (S.jt.kind === 'fuse' && S.parts.get(f.partId)?.fusedTo) out.add(f.partId);
+  else for (const id of subtreeBody(hostOf(f.partId))) out.add(id);
+  return out;
+}
+const subtreeBody = (h) => bodyParts(h);
 function rootOf(id) { let c = id, guard = 0; while (S.parentOf.has(c) && guard++ < 10000) c = S.parentOf.get(c).parent; return c; }
 function subtree(id) {
   const out = [id];
-  for (let i = 0; i < out.length; i++) for (const j of S.childrenOf.get(out[i]) || []) out.push(j.child);
+  for (let i = 0; i < out.length; i++) {
+    for (const m of membersOf(out[i])) out.push(m);
+    for (const j of S.childrenOf.get(out[i]) || []) out.push(j.child);
+  }
   return out;
 }
 const isAncestor = (a, b) => { let c = b; while (S.parentOf.has(c)) { c = S.parentOf.get(c).parent; if (c === a) return true; } return false; };
@@ -1378,7 +1410,10 @@ function computeWorld(useAnim = true, qOf = null) {
     if (m) return m;
     const p = S.parts.get(id);
     const j = S.parentOf.get(id);
-    if (!j) m = p.rest.clone();
+    if (p.fusedTo && S.parts.has(p.fusedTo)) {
+      const hp = S.parts.get(p.fusedTo);
+      m = get(hp.id).clone().multiply(inv(hp.rest)).multiply(p.rest);
+    } else if (!j) m = p.rest.clone();
     else {
       const a = S.parts.get(j.parent);
       const je = useAnim ? effJoint(j) : j;
@@ -1687,6 +1722,7 @@ function deleteJoint(j, keepPose = true) {
 }
 
 function deletePart(p) {
+  for (const m of membersOf(p.id)) unfusePart(S.parts.get(m));
   for (const j of [...S.joints.values()]) if (j.parent === p.id || j.child === p.id) deleteJoint(j);
   removePartMesh(p);
   S.parts.delete(p.id);
@@ -1696,6 +1732,7 @@ function deletePart(p) {
 
 // Convierte una pieza en la raíz (base) invirtiendo las uniones del camino.
 function makeBase(id) {
+  id = hostOf(id);
   const before = computeWorld(false);
   const path = [];
   let c = id;
@@ -1717,6 +1754,68 @@ function makeBase(id) {
   const D = before.get(id).clone().multiply(inv(after.get(id)));
   applySubtreeDelta(id, D);
   for (const j of path) buildJointVis(j);
+}
+
+// ── Fusionar piezas en un solo cuerpo (link) ───────────────────────
+function mateRest(H, mt) {
+  return H.rest.clone().multiply(mt.Lp).multiply(T4(0, 0, mt.offset))
+    .multiply(M4().makeRotationZ(mt.angle * DEG))
+    .multiply(mt.flip ? M4() : M4().makeRotationX(Math.PI))
+    .multiply(inv(mt.Lc));
+}
+function applyFuseMate(p) {
+  if (!p.fuseMate || !p.fusedTo) return;
+  p.rest = mateRest(S.parts.get(p.fusedTo), p.fuseMate);
+  needsRender = true;
+}
+// Separa una pieza de su cuerpo; se queda donde se ve.
+function unfusePart(p) {
+  if (!p || !p.fusedTo) return;
+  const W = computeWorld(false);
+  p.rest = W.get(p.id).clone();
+  p.fusedTo = null; p.fuseMate = null;
+  rebuildIndex();
+}
+// Mueve una unión de la pieza m al cuerpo h (su marco sigue pegado a la misma geometría).
+function reparentJoint(j, m, h) {
+  const H = S.parts.get(h), Mp = S.parts.get(m);
+  const C = inv(H.rest).multiply(Mp.rest);
+  const hole = decompose(C.clone().multiply(compose(j.framePos, j.holeQuat)));
+  j.framePos.copy(hole.p); j.holeQuat.copy(hole.q);
+  const cq = decompose(C).q;
+  j.worldQuat = cq.clone().multiply(j.worldQuat);
+  if (j.mate) j.mate.Lp = C.clone().multiply(j.mate.Lp);
+  j.parent = h;
+}
+// Fusiona la pieza a (con todo lo que tenga fusionado o colgando) al cuerpo de b.
+function fuseInto(aId, bId, mate) {
+  const a = S.parts.get(aId);
+  if (!a || !S.parts.has(bId)) return { err: 'Pieza no encontrada.' };
+  if (hostOf(aId) === hostOf(bId)) return { err: 'Esas piezas ya forman parte del mismo cuerpo.' };
+  if (a.fusedTo) unfusePart(a);            // una pieza ya fusionada se cambia de cuerpo
+  rebuildIndex();
+  let m = aId, h = hostOf(bId);
+  const jd = [...S.joints.values()].find((j) => (j.parent === h && j.child === m) || (j.parent === m && j.child === h)) || null;
+  const hasParent = (x) => S.parentOf.has(x) && S.parentOf.get(x) !== jd;
+  const pm = hasParent(m), ph = hasParent(h);
+  if (pm && ph) return { err: 'Las dos piezas cuelgan de otras uniones y un cuerpo solo puede tener una unión padre. Elimina una de esas uniones primero.' };
+  if (!jd && (isAncestor(m, h) || isAncestor(h, m))) return { err: 'Esas piezas ya están conectadas por una cadena de uniones; fusionarlas cerraría un ciclo.' };
+  const removed = jd ? jd.name : null;
+  if (jd) deleteJoint(jd, true);
+  rebuildIndex();
+  let swapped = false;
+  if (pm) { [m, h] = [h, m]; swapped = true; mate = null; }   // el cuerpo con unión padre manda
+  const H = S.parts.get(h), Mp = S.parts.get(m);
+  const W = computeWorld(false);
+  const newRest = mate ? mateRest(H, mate) : H.rest.clone().multiply(inv(W.get(h))).multiply(W.get(m));
+  setSubtreeRest(m, newRest);
+  for (const j of [...(S.childrenOf.get(m) || [])]) reparentJoint(j, m, h);
+  for (const p of S.parts.values()) if (p.fusedTo === m) { p.fusedTo = h; p.fuseMate = null; }
+  Mp.fusedTo = h;
+  Mp.fuseMate = mate ? { Lc: mate.Lc.clone(), Lp: mate.Lp.clone(), flip: mate.flip, angle: mate.angle, offset: mate.offset } : null;
+  if (S.baseId === m) S.baseId = h;
+  rebuildIndex();
+  return { host: h, member: m, swapped, removedJoint: removed };
 }
 
 // Coloca piezas recién subidas en fila si quedaron encimadas.
@@ -1896,8 +1995,8 @@ function hitJoint() {
 }
 function jtFilter() {
   if (!S.jt) return null;
-  if (S.jt.step === 2) return (p) => p.id !== S.jt.first.partId;
-  if (S.jt.step === 'repick') { const j = S.joints.get(S.jt.jointId); return (p) => j && (p.id === j.parent || p.id === j.child); }
+  if (S.jt.step === 2) { const hb = hostOf(S.jt.first.partId); return (p) => hostOf(p.id) !== hb; }
+  if (S.jt.step === 'repick') { const j = S.joints.get(S.jt.jointId); return (p) => j && (hostOf(p.id) === j.parent || hostOf(p.id) === j.child); }
   return null;
 }
 
@@ -1953,7 +2052,7 @@ function processHover() {
   }
   canvas.style.cursor = jh || hit ? 'pointer' : 'default';
   if (jh) setStatus(`Unión <b>${jh.name}</b> · ${dofWords(jh)}`);
-  else if (hit) { const p = S.parts.get(id); setStatus(`<b>${p.name}</b> · ${MATERIALS[p.mat].n}`); }
+  else if (hit) { const p = S.parts.get(id); setStatus(`<b>${p.name}</b> · ${MATERIALS[p.mat].n}${p.fusedTo ? ` · fusionada a <b>${S.parts.get(p.fusedTo).name}</b>` : membersOf(id).length ? ` · cuerpo de ${membersOf(id).length + 1} piezas` : ''}`); }
   else setIdleStatus();
 }
 
@@ -1974,11 +2073,12 @@ function onViewportClick(ev) {
 }
 
 // ── Herramienta de unión ───────────────────────────────────────────
-function startJointTool(repickId) {
-  if (!repickId && S.parts.size < 2) { toast('Necesitas al menos dos piezas para crear una unión.', 'warn'); return; }
+function startJointTool(repickId, kind = 'joint') {
+  if (!repickId && S.parts.size < 2) { toast(kind === 'fuse' ? 'Necesitas al menos dos piezas para fusionar.' : 'Necesitas al menos dos piezas para crear una unión.', 'warn'); return; }
   stopPlay(); S.preview = null;
-  S.tool = 'joint';
-  S.jt = repickId ? { step: 'repick', jointId: repickId } : { step: 1, mode: S.lastJointMode, first: null };
+  S.tool = kind;
+  S.jt = repickId ? { kind: 'joint', step: 'repick', jointId: repickId }
+    : { kind, step: 1, mode: kind === 'fuse' ? (S.lastFuseMode || 'inplace') : S.lastJointMode, first: null };
   if (S.sel && S.sel.type === 'part' && !repickId) select(null);
   updateGizmo(); renderToolbar(); renderBanner(); styleAll();
   setStatus(jtIdleText());
@@ -1991,17 +2091,22 @@ function endJointTool() {
 }
 function jtIdleText() {
   if (!S.jt) return '';
+  if (S.jt.kind === 'fuse') return S.jt.step === 1 ? 'Clic en el componente fijo: servo, tapa, soporte…' : 'Clic en la pieza del cuerpo a la que va pegado.';
   if (S.jt.step === 'repick') return 'Pasa el mouse por un agujero: verás su centro marcado.';
   return S.jt.step === 1 ? 'Pasa el mouse por un agujero: el anillo ámbar marca su centro y el eje.' : 'Elige el punto de la pieza padre.';
 }
 function jointPick(p, s) {
-  const L = frameFromZ(s.point.clone().multiplyScalar(p.unit), s.normal);
+  if (S.jt.kind === 'fuse') { fusePick(p, s); return; }
+  let L = frameFromZ(s.point.clone().multiplyScalar(p.unit), s.normal);
   const jt = S.jt;
+  // Un clic sobre una pieza fusionada cuenta para su cuerpo (link).
+  const pid = hostOf(p.id);
+  if (pid !== p.id) L = inv(S.parts.get(pid).rest).multiply(p.rest).multiply(L);
   if (jt.step === 'repick') {
     const j = S.joints.get(jt.jointId);
     if (!j) { endJointTool(); return; }
     const parent = S.parts.get(j.parent), child = S.parts.get(j.child);
-    const F = p.id === j.parent ? L : inv(parent.rest).multiply(child.rest).multiply(L);
+    const F = pid === j.parent ? L : inv(parent.rest).multiply(child.rest).multiply(L);
     const d = decompose(F);
     j.framePos.copy(d.p); j.holeQuat.copy(d.q); j.spin = 0; j.mate = null;
     if (j.frameMode === 'hole') j.axis = 'z';
@@ -2012,7 +2117,7 @@ function jointPick(p, s) {
     return;
   }
   if (jt.step === 1) {
-    jt.first = { partId: p.id, L, snap: s };
+    jt.first = { partId: pid, L, snap: s };
     jt.step = 2;
     placeSnap(pickG, p, s);
     styleAll(); renderBanner();
@@ -2020,8 +2125,8 @@ function jointPick(p, s) {
     return;
   }
   const first = jt.first;
-  if (p.id === first.partId) { toast('Elige una pieza distinta para el segundo clic.', 'warn'); return; }
-  let childId = first.partId, parentId = p.id, Lc = first.L, Lp = L, swapped = false;
+  if (pid === first.partId) { toast('Esa pieza es del mismo cuerpo. Elige una pieza distinta para el segundo clic.', 'warn'); return; }
+  let childId = first.partId, parentId = pid, Lc = first.L, Lp = L, swapped = false;
   const bad = (c, par) => S.parentOf.has(c) || isAncestor(c, par);
   if (bad(childId, parentId)) {
     if (!bad(parentId, childId)) { [childId, parentId] = [parentId, childId]; [Lc, Lp] = [Lp, Lc]; swapped = true; }
@@ -2042,6 +2147,42 @@ function jointPick(p, s) {
   toast(swapped ? `${S.parts.get(first.partId).name} ya tenía padre, así que ${c} quedó como hija de ${pa}.` : `Unión creada: ${pa} (padre) → ${c} (hija).`);
   autoPreview(j);
 }
+function fusePick(p, s) {
+  const jt = S.jt;
+  const L = frameFromZ(s.point.clone().multiplyScalar(p.unit), s.normal);
+  if (jt.step === 1) {
+    jt.first = { partId: p.id, L, snap: s };
+    jt.step = 2;
+    placeSnap(pickG, p, s);
+    styleAll(); renderBanner(); setStatus(jtIdleText());
+    return;
+  }
+  const a = S.parts.get(jt.first.partId);
+  if (hostOf(p.id) === hostOf(a.id)) { toast('Esa pieza ya es parte del mismo cuerpo. Elige otra.', 'warn'); return; }
+  let mate = null;
+  if (jt.mode === 'assemble') {
+    const single = !membersOf(a.id).length && !(S.childrenOf.get(a.id) || []).length && !S.parentOf.has(a.id);
+    if (single) {
+      const h = hostOf(p.id), H = S.parts.get(h);
+      const Lp = h === p.id ? L : inv(H.rest).multiply(p.rest).multiply(L);
+      const W = computeWorld(false);
+      mate = { Lc: jt.first.L.clone(), Lp, flip: false, angle: defaultMateAngle(H, a, jt.first.L, Lp, W), offset: 0 };
+    } else toast('“Encajar” funciona con una pieza suelta; la fusioné en su posición actual.', 'warn', 5000);
+  }
+  const r = fuseInto(a.id, p.id, mate);
+  if (r.err) { toast(r.err, 'err', 6500); return; }
+  const hn = S.parts.get(r.host).name, mn = S.parts.get(r.member).name;
+  jt.step = 1; jt.first = null; jt.last = `${mn} → ${hn}`;
+  placeSnap(pickG, null);
+  commit(); renderUI();
+  toast(`${mn} quedó fusionada a ${hn}: ahora son un solo link.${r.removedJoint ? ` Quité la unión ${r.removedJoint} que había entre ellas.` : ''}`, 'info', 5500);
+}
+function doFuse(aId, bId) {
+  const r = fuseInto(aId, bId, null);
+  if (r.err) { toast(r.err, 'err', 6500); return; }
+  commit(); renderUI();
+  toast(`${S.parts.get(r.member).name} quedó fusionada a ${S.parts.get(r.host).name}.${r.removedJoint ? ` Quité la unión ${r.removedJoint}.` : ''}`);
+}
 function autoPreview(j) {
   if (j.type === 'fixed') return;
   S.preview = { jointId: j.id, type: j.type, axis: j.axis, sign: j.sign, t0: clock, until: clock + 2.4 };
@@ -2057,13 +2198,19 @@ function select(sel) {
   needsRender = true;
 }
 function setTool(t) {
-  if (t === 'joint') { if (S.jt) endJointTool(); else startJointTool(); return; }
+  if (t === 'joint' || t === 'fuse') {
+    const same = S.jt && S.jt.kind === t && S.jt.step !== 'repick';
+    if (S.jt) endJointTool();
+    if (!same) startJointTool(null, t);
+    return;
+  }
   if (S.jt) endJointTool();
   S.tool = t;
   updateGizmo(); renderToolbar();
   if ((t === 'move' || t === 'rotate')) {
     const p = S.sel && S.sel.type === 'part' ? S.parts.get(S.sel.id) : null;
     if (!p) setStatus('Selecciona una pieza para moverla.');
+    else if (p.fusedTo) setStatus(`<b>${p.name}</b> está fusionada a <b>${S.parts.get(p.fusedTo).name}</b>; se mueve con ese cuerpo.`);
     else if (!isRoot(p.id)) setStatus(`<b>${p.name}</b> está unida a otra pieza; se mueve con su unión.`);
   }
 }
@@ -2118,9 +2265,9 @@ function setIdleStatus() {
 function renderToolbar() {
   const bar = $('#vpTools');
   bar.innerHTML = '';
-  const tools = [['select', 'Seleccionar', 'V'], ['move', 'Mover pieza', 'G'], ['rotate', 'Rotar pieza', 'R'], ['joint', 'Unir piezas (crear joint)', 'J']];
+  const tools = [['select', 'Seleccionar', 'V'], ['move', 'Mover pieza', 'G'], ['rotate', 'Rotar pieza', 'R'], ['joint', 'Unir piezas con movimiento (joint)', 'J'], ['fuse', 'Fusionar piezas en un solo cuerpo', 'U']];
   for (const [id, label, k] of tools) {
-    const active = id === 'joint' ? !!S.jt : S.tool === id && !S.jt;
+    const active = id === 'joint' || id === 'fuse' ? !!S.jt && S.jt.kind === id : S.tool === id && !S.jt;
     bar.append(h('button', { class: 'tool', 'aria-pressed': String(active), title: `${label} (${k})`, 'aria-label': label, onclick: () => setTool(id) }, iconEl(id), h('span', { class: 'k' }, k)));
   }
   bar.append(h('div', { class: 'sep-h' }));
@@ -2145,7 +2292,14 @@ function renderBanner() {
   b.hidden = false; b.innerHTML = '';
   const jt = S.jt;
   let step, msg;
-  if (jt.step === 'repick') {
+  if (jt.kind === 'fuse') {
+    step = jt.step === 1 ? 'Fusionar · 1 de 2' : 'Fusionar · 2 de 2';
+    if (jt.step === 1) msg = `${jt.last ? `Listo: ${jt.last}. ` : ''}Clic en el componente que va fijo: servo, tapa, soporte, tornillería…`;
+    else {
+      const n = S.parts.get(jt.first.partId).name;
+      msg = jt.mode === 'assemble' ? `Ahora clic en el punto del cuerpo donde encaja ${n}. Quedarán como un solo link.` : `Ahora clic en la pieza a la que va pegado ${n}. Quedarán como un solo link.`;
+    }
+  } else if (jt.step === 'repick') {
     const j = S.joints.get(jt.jointId);
     step = 'Reubicar';
     msg = `Haz clic en el nuevo centro de ${j ? j.name : 'la unión'}, sobre la pieza padre o la hija.`;
@@ -2162,15 +2316,18 @@ function renderBanner() {
       : `Ahora clic en la pieza padre: la que sostiene a ${n}.`;
   }
   b.append(h('div', { class: 'b-top' }, h('span', { class: 'step' }, step), h('div', { class: 'msg' }, msg),
-    h('button', { class: 'btn sm ghost', onclick: endJointTool, title: 'Cancelar (Esc)' }, 'Cancelar')));
+    h('button', { class: 'btn sm ghost', onclick: endJointTool, title: 'Salir (Esc)' }, jt.kind === 'fuse' && jt.last ? 'Terminar' : 'Cancelar')));
   const row = h('div', { class: 'b-row' });
   if (jt.step !== 'repick') {
-    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Modo de unión' });
-    for (const [k, l] of [['assemble', 'Encajar piezas'], ['inplace', 'Ya están en posición']]) {
-      seg.append(h('button', { 'aria-pressed': String(jt.mode === k), onclick: () => { jt.mode = k; S.lastJointMode = k; renderBanner(); } }, l));
+    const fuse = jt.kind === 'fuse';
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': fuse ? 'Modo de fusión' : 'Modo de unión' });
+    const opts = fuse ? [['inplace', 'Ya están en posición'], ['assemble', 'Encajar y fusionar']] : [['assemble', 'Encajar piezas'], ['inplace', 'Ya están en posición']];
+    for (const [k, l] of opts) {
+      seg.append(h('button', { 'aria-pressed': String(jt.mode === k), onclick: () => { jt.mode = k; if (fuse) S.lastFuseMode = k; else S.lastJointMode = k; renderBanner(); } }, l));
     }
     row.append(seg);
   }
+  if (jt.kind === 'fuse' && jt.mode !== 'assemble') { b.append(row); return; }
   const seg2 = h('div', { class: 'seg', role: 'group', 'aria-label': 'Tipo de punto' });
   for (const [k, l] of [['auto', 'Agujeros'], ['face', 'Centro de cara'], ['point', 'Punto libre']]) {
     seg2.append(h('button', { 'aria-pressed': String(S.snapMode === k), onclick: () => { S.snapMode = k; renderBanner(); } }, l));
@@ -2205,7 +2362,17 @@ function renderTree() {
       h('span', { class: 'dot', style: `background:${p.color}` }),
       h('span', { class: 'nm mono' }, p.name),
       id === S.baseId ? h('span', { class: 'tag base' }, 'BASE') : null,
+      membersOf(id).length ? h('span', { class: 'tag', title: 'Piezas fusionadas en este link' }, `+${membersOf(id).length}`) : null,
       h('span', { class: 'tag' }, (MATERIALS[p.mat] || MATERIALS.pla).n.split(' ')[0])));
+    for (const mid of membersOf(id)) {
+      const mp = S.parts.get(mid);
+      tree.append(h('button', { class: `tree-row member${isSel('part', mid) ? ' sel' : ''}`, style: `padding-left:${8 + (depth + 1) * 16}px`, title: `Fusionada a ${p.name} (mismo link)`, onclick: () => select({ type: 'part', id: mid }) },
+        guides(depth + 1),
+        h('span', { class: 'fz', html: svgIcon('fuse') }),
+        h('span', { class: 'dot', style: `background:${mp.color}` }),
+        h('span', { class: 'nm mono' }, mp.name),
+        h('span', { class: 'tag' }, (MATERIALS[mp.mat] || MATERIALS.pla).n.split(' ')[0])));
+    }
     for (const j of S.childrenOf.get(id) || []) {
       const d = dofCode(j);
       tree.append(h('button', { class: `tree-row joint${isSel('joint', j.id) ? ' sel' : ''}`, style: `padding-left:${8 + (depth + 1) * 16}px`, onclick: () => select({ type: 'joint', id: j.id }) },
@@ -2299,11 +2466,12 @@ function inspectNone() {
   const parts = [...S.parts.values()];
   const mass = parts.reduce((s, p) => s + inertialOf(p).mass, 0);
   const dof = [...S.joints.values()].filter((j) => j.type !== 'fixed').length;
+  const links = parts.filter((p) => !p.fusedTo).length;
   const out = [];
   out.push(sec(null,
     h('div', { class: 'insp-head' }, h('span', { class: 'eyebrow' }, S.isExample ? 'Robot de ejemplo' : 'Tu robot'), h('div', { class: 'name-input', style: 'margin-left:0;padding-left:0' }, S.robotName)),
     h('div', { class: 'bigstats' },
-      h('div', null, h('b', null, String(parts.length)), h('span', null, 'piezas (links)')),
+      h('div', null, h('b', null, String(parts.length)), h('span', null, `piezas · ${links} links`)),
       h('div', null, h('b', null, String(S.joints.size)), h('span', null, 'uniones (joints)')),
       h('div', null, h('b', null, String(dof)), h('span', null, 'grados de libertad')),
       h('div', null, h('b', null, parts.length ? fmtMass(mass) : '—'), h('span', null, 'masa estimada'))),
@@ -2311,6 +2479,7 @@ function inspectNone() {
   out.push(sec('Cómo armar tu URDF', h('ol', { class: 'guide-steps' },
     h('li', null, h('div', null, h('b', null, 'Sube los STL de cada pieza'), h('p', null, 'Elige las unidades del archivo (casi siempre mm). Si exportaste las piezas desde un ensamble, conservan su posición.'))),
     h('li', null, h('div', null, h('b', null, 'Une las piezas con '), h('span', { class: 'kbd' }, 'J'), h('p', null, 'Primer clic en el agujero de la pieza que se mueve y segundo en el de la pieza fija. El centro del agujero se detecta solo, como en Fusion.'))),
+    h('li', null, h('div', null, h('b', null, 'Fusiona lo que va fijo con '), h('span', { class: 'kbd' }, 'U'), h('p', null, 'Servos, tapas o tornillería pegados a una pieza se vuelven un solo link del URDF; su masa se suma.'))),
     h('li', null, h('div', null, h('b', null, 'Elige el grado de libertad'), h('p', null, 'Gira o desliza en X, Y o Z. Pasa el mouse por cada opción para ver cómo se mueve antes de elegir.'))),
     h('li', null, h('div', null, h('b', null, 'Material, límites y home'), h('p', null, 'PLA, aluminio, etc. para calcular masa e inercia; límites del servo y la pose de inicio.'))),
     h('li', null, h('div', null, h('b', null, 'Genera el URDF'), h('p', null, 'Copia el XML o descarga el paquete ROS 2 listo para colcon build y RViz.'))))));
@@ -2319,7 +2488,7 @@ function inspectNone() {
     h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => openReport('bug') }, iconEl('bug'), 'Reportar un error'),
       h('button', { class: 'btn sm', onclick: () => openReport('idea') }, iconEl('message'), 'Sugerir una idea'))));
   out.push(sec('Atajos', h('div', { class: 'hint', style: 'display:flex;flex-wrap:wrap;gap:6px 12px' },
-    ...[['V', 'seleccionar'], ['G', 'mover'], ['R', 'rotar'], ['J', 'unir'], ['F', 'encuadrar'], ['Supr', 'eliminar'], ['Ctrl+Z', 'deshacer'], ['Esc', 'cancelar']]
+    ...[['V', 'seleccionar'], ['G', 'mover'], ['R', 'rotar'], ['J', 'unir'], ['U', 'fusionar'], ['F', 'encuadrar'], ['Supr', 'eliminar'], ['Ctrl+Z', 'deshacer'], ['Esc', 'cancelar']]
       .map(([k, l]) => h('span', null, h('span', { class: 'kbd' }, k), ' ', l)))));
   return out;
 }
@@ -2329,10 +2498,14 @@ function inspectPart(p) {
   const m = MATERIALS[p.mat] || MATERIALS.pla;
   const ip = inertialOf(p);
   const root = isRoot(p.id), pj = S.parentOf.get(p.id);
+  const host = p.fusedTo ? S.parts.get(p.fusedTo) : null;
+  const members = membersOf(p.id);
   const out = [];
-  const head = h('div', { class: 'insp-head' }, h('span', { class: 'eyebrow' }, 'Pieza · link'), renameInput(p, 'part'),
+  const eyebrow = host ? 'Pieza fusionada' : members.length ? 'Cuerpo · link' : 'Pieza · link';
+  const head = h('div', { class: 'insp-head' }, h('span', { class: 'eyebrow' }, eyebrow), renameInput(p, 'part'),
     h('div', { class: 'hint mono', style: 'font-size:11.5px;overflow-wrap:anywhere' }, `${p.fileName} · ${an.nT.toLocaleString('es-MX')} triángulos`));
   out.push(sec(null, head));
+  out.push(...bodySection(p, host, members));
 
   // Material
   const msel = h('select', { class: 'select', 'aria-label': 'Material', value: p.mat }, Object.entries(MATERIALS).map(([k, v]) => h('option', { value: k }, `${v.n} · ${(v.rho / 1000).toFixed(2)} g/cm³`)));
@@ -2365,7 +2538,8 @@ function inspectPart(p) {
   massIn.addEventListener('change', () => { const v = parseFloat(massIn.value); p.massOverride = isFinite(v) && v > 0 ? v / 1000 : null; commit(); renderInspector(); });
   out.push(sec('Propiedades físicas',
     h('dl', { class: 'stats' },
-      h('dt', null, 'Masa'), h('dd', null, `${fmtMass(ip.mass)}${p.massOverride != null ? ' (manual)' : ''}`),
+      h('dt', null, members.length ? 'Masa de esta pieza' : 'Masa'), h('dd', null, `${fmtMass(ip.mass)}${p.massOverride != null ? ' (manual)' : ''}`),
+      members.length ? h('dt', null, 'Masa del cuerpo') : null, members.length ? h('dd', null, fmtMass(bodyParts(p.id).reduce((s, id) => s + inertialOf(S.parts.get(id)).mass, 0))) : null,
       h('dt', null, 'Volumen'), h('dd', null, `${(ip.V * 1e6).toFixed(2)} cm³`),
       h('dt', null, 'Tamaño'), h('dd', null, `${sz.x.toFixed(1)} × ${sz.y.toFixed(1)} × ${sz.z.toFixed(1)} mm`),
       h('dt', null, 'Centro de masa'), h('dd', null, `${com.x.toFixed(1)}, ${com.y.toFixed(1)}, ${com.z.toFixed(1)} mm`),
@@ -2378,6 +2552,10 @@ function inspectPart(p) {
   for (const u of UNITS) useg.append(h('button', { 'aria-pressed': String(Math.abs(p.unit - u.v) < 1e-12), onclick: () => { p.unit = u.v; commit(); fitView(); renderInspector(); } }, u.l));
   out.push(sec('Unidades del archivo', useg, h('div', { class: 'hint' }, 'Si la pieza se ve enorme o diminuta, cambia la unidad. Hazlo antes de crear sus uniones.')));
 
+  if (host) {
+    out.push(sec(null, h('button', { class: 'btn sm danger', onclick: deleteSelected }, iconEl('trash'), 'Eliminar pieza')));
+    return out;
+  }
   // Posición y jerarquía
   if (root) {
     const rotBtn = (ax, l) => h('button', { class: 'btn sm', onclick: () => rotateRoot(p, ax) }, l);
@@ -2400,6 +2578,48 @@ function inspectPart(p) {
   }
   out.push(sec('Jerarquía', ...hier));
   out.push(sec(null, h('button', { class: 'btn sm danger', onclick: deleteSelected }, iconEl('trash'), 'Eliminar pieza')));
+  return out;
+}
+function bodySection(p, host, members) {
+  const out = [];
+  if (host) {
+    out.push(sec('Cuerpo',
+      h('div', { class: 'note' }, 'Es parte del link ', h('b', null, host.name), '. En el URDF se exporta como otro visual del mismo link y su masa se suma a la del cuerpo; se mueve junto con él.'),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn sm', onclick: () => select({ type: 'part', id: host.id }) }, 'Ver el cuerpo'),
+        h('button', { class: 'btn sm', onclick: () => { unfusePart(p); commit(); renderUI(); toast(`Separé ${p.name} de ${host.name}. Ahora es su propio link.`); } }, 'Separar del cuerpo'))));
+    if (p.fuseMate) {
+      const m = p.fuseMate;
+      const flip = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: m.flip }), 'Invertir encaje (voltear la pieza)');
+      flip.querySelector('input').addEventListener('change', (ev) => { m.flip = ev.target.checked; applyFuseMate(p); commit(); });
+      const ang = h('input', { type: 'range', min: '-180', max: '180', step: '1', value: m.angle, 'aria-label': 'Ángulo de encaje' });
+      const angV = h('span', { class: 'val mono', style: 'min-width:52px;text-align:right' }, `${m.angle.toFixed(0)}°`);
+      ang.addEventListener('input', () => { m.angle = Number(ang.value); angV.textContent = `${m.angle.toFixed(0)}°`; applyFuseMate(p); });
+      ang.addEventListener('change', () => commit());
+      const step = (d) => { let a = m.angle + d; if (a > 180) a -= 360; if (a < -180) a += 360; m.angle = a; applyFuseMate(p); commit(); renderInspector(); };
+      out.push(sec('Ajustar encaje',
+        h('div', { class: 'qline' }, h('div', { style: 'flex:1;min-width:0' }, ang), angV),
+        h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => step(-90) }, '−90°'), h('button', { class: 'btn sm', onclick: () => step(90) }, '+90°')),
+        numField('Separación', (m.offset * 1000).toFixed(2), 'mm', (v) => { m.offset = v / 1000; applyFuseMate(p); commit(); }, { step: '0.5' }),
+        flip));
+    }
+    return out;
+  }
+  const others = [...S.parts.values()].filter((o) => hostOf(o.id) !== p.id);
+  const pick = h('select', { class: 'select', 'aria-label': 'Fusionar otra pieza a este cuerpo' },
+    h('option', { value: '' }, others.length ? 'Fusionar otra pieza aquí…' : 'No hay otras piezas'),
+    others.map((o) => h('option', { value: o.id }, o.fusedTo ? `${o.name} (ahora en ${S.parts.get(o.fusedTo).name})` : o.name)));
+  pick.addEventListener('change', () => { if (pick.value) doFuse(pick.value, p.id); });
+  const kids = [];
+  if (members.length) {
+    kids.push(h('div', { class: 'hint' }, `Este link combina ${members.length + 1} piezas; en el URDF salen como varios visuales y una sola masa e inercia:`));
+    kids.push(h('div', { class: 'chips' }, h('span', { class: 'chip', style: 'cursor:default' }, p.name, h('small', null, 'principal')),
+      members.map((id) => h('button', { class: 'chip', onclick: () => select({ type: 'part', id }) }, S.parts.get(id).name))));
+  } else {
+    kids.push(h('div', { class: 'hint' }, '¿Un servo, tapa o tornillería va fijo a esta pieza? Fusiónalos y el URDF los trata como un solo link.'));
+  }
+  kids.push(h('div', { class: 'row' }, h('div', { class: 'grow' }, pick), h('button', { class: 'btn sm', title: 'Fusionar haciendo clic en el visor (U)', onclick: () => setTool('fuse') }, iconEl('fuse'), 'Con clics')));
+  out.push(sec(members.length ? 'Cuerpo (link)' : 'Fusionar', ...kids));
   return out;
 }
 function rotateRoot(p, axis) {
@@ -2624,7 +2844,9 @@ function buildExport(o) {
   // Nombres únicos
   const linkName = new Map(), jointName = new Map();
   const tl = new Set(), tj = new Set();
-  for (const p of parts) { const n = uniqueName(rosName(p.name, 'link'), tl); tl.add(n); linkName.set(p.id, n); }
+  for (const p of parts) { if (p.fusedTo) continue; const n = uniqueName(rosName(p.name, 'link'), tl); tl.add(n); linkName.set(p.id, n); }
+  const meshName = new Map(), tm = new Set();
+  for (const p of parts) { const n = uniqueName(rosName(p.name, 'pieza'), tm); tm.add(n); meshName.set(p.id, n); }
   if (o.worldLink && tl.has('world')) warnings.push({ k: 'warn', t: 'Hay una pieza llamada "world"; renómbrala para usar el link world.' });
   for (const j of S.joints.values()) { const n = uniqueName(rosName(j.name, 'joint'), tj); tj.add(n); jointName.set(j.id, n); }
 
@@ -2658,7 +2880,7 @@ function buildExport(o) {
   const colors = new Map();
   for (const p of parts) colors.set(colorName(p), p.color);
   const rgba = (hex) => { const c = new THREE.Color(hex); return `${num(c.r, 3)} ${num(c.g, 3)} ${num(c.b, 3)} 1`; };
-  const meshFile = (p) => `meshes/${linkName.get(p.id)}.stl`;
+  const meshFile = (p) => `meshes/${meshName.get(p.id)}.stl`;
 
   const lines = [];
   lines.push('<?xml version="1.0"?>');
@@ -2674,41 +2896,60 @@ function buildExport(o) {
     lines.push('');
   }
   let massTotal = 0;
+  const matNote = (p) => `${(MATERIALS[p.mat] || MATERIALS.pla).n}${p.massOverride ? ', masa medida' : MATERIALS[p.mat]?.printed ? `, relleno ${p.infill}%` : ''}`;
   for (const id of order) {
-    const p = S.parts.get(id);
-    const ip = inertialOf(p);
-    massTotal += ip.mass;
-    const T = inv(L.get(id)).multiply(W.get(id));       // malla → link
-    const R = rot3(T);
-    const I = matMul3(matMul3(R, ip.I), tr3(R));
-    const com = ip.com.clone().applyMatrix4(T);
-    const u = num(p.unit, 6);
-    const mesh = `<mesh filename="package://${pkg}/${meshFile(p)}" scale="${u} ${u} ${u}"/>`;
-    lines.push(`  <!-- ${(MATERIALS[p.mat] || MATERIALS.pla).n}${MATERIALS[p.mat]?.printed ? `, relleno ${p.infill}%` : ''}${p.massOverride ? ', masa medida' : ''} -->`);
+    const body = bodyParts(id).map((pid) => S.parts.get(pid));
+    const Linv = inv(L.get(id));
+    // Inercia combinada del cuerpo (teorema de ejes paralelos)
+    const items = body.map((p) => {
+      const ip = inertialOf(p);
+      const T = Linv.clone().multiply(W.get(p.id));      // malla → link
+      const R = rot3(T);
+      return { p, T, m: ip.mass, c: ip.com.clone().applyMatrix4(T), I: matMul3(matMul3(R, ip.I), tr3(R)) };
+    });
+    const mass = items.reduce((s, it) => s + it.m, 0);
+    const com = V3();
+    for (const it of items) com.addScaledVector(it.c, it.m / mass);
+    const I = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (const it of items) {
+      const d = [it.c.x - com.x, it.c.y - com.y, it.c.z - com.z];
+      const dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) I[r][c] += it.I[r][c] + it.m * ((r === c ? dd : 0) - d[r] * d[c]);
+    }
+    massTotal += mass;
+    if (body.length > 1) lines.push(`  <!-- Cuerpo fusionado: ${body.map((p) => `${p.name} (${matNote(p)})`).join(' + ')} -->`);
+    else lines.push(`  <!-- ${matNote(body[0])} -->`);
     lines.push(`  <link name="${linkName.get(id)}">`);
     lines.push('    <inertial>');
     lines.push(`      <origin xyz="${xyzStr(com)}" rpy="0 0 0"/>`);
-    lines.push(`      <mass value="${num(ip.mass, 6)}"/>`);
+    lines.push(`      <mass value="${num(mass, 6)}"/>`);
     lines.push(`      <inertia ixx="${sci(I[0][0])}" ixy="${sci(I[0][1])}" ixz="${sci(I[0][2])}" iyy="${sci(I[1][1])}" iyz="${sci(I[1][2])}" izz="${sci(I[2][2])}"/>`);
     lines.push('    </inertial>');
-    lines.push('    <visual>');
-    lines.push(originTag(T, '      '));
-    lines.push(`      <geometry>\n        ${mesh}\n      </geometry>`);
-    lines.push(`      <material name="${colorName(p)}"/>`);
-    lines.push('    </visual>');
-    if (o.collision === 'mesh') {
-      lines.push('    <collision>');
+    for (const { p, T } of items) {
+      const u = num(p.unit, 6);
+      const mesh = `<mesh filename="package://${pkg}/${meshFile(p)}" scale="${u} ${u} ${u}"/>`;
+      lines.push(body.length > 1 ? `    <visual name="${meshName.get(p.id)}">` : '    <visual>');
       lines.push(originTag(T, '      '));
       lines.push(`      <geometry>\n        ${mesh}\n      </geometry>`);
-      lines.push('    </collision>');
-    } else if (o.collision === 'box') {
-      const an = pool.get(id).an;
-      const c = an.bbox.getCenter(V3()).multiplyScalar(p.unit);
-      const s = an.size.clone().multiplyScalar(p.unit);
-      lines.push('    <collision>');
-      lines.push(originTag(T.clone().multiply(T4(c.x, c.y, c.z)), '      '));
-      lines.push(`      <geometry>\n        <box size="${num(Math.max(s.x, 1e-4))} ${num(Math.max(s.y, 1e-4))} ${num(Math.max(s.z, 1e-4))}"/>\n      </geometry>`);
-      lines.push('    </collision>');
+      lines.push(`      <material name="${colorName(p)}"/>`);
+      lines.push('    </visual>');
+    }
+    for (const { p, T } of items) {
+      if (o.collision === 'mesh') {
+        const u = num(p.unit, 6);
+        lines.push('    <collision>');
+        lines.push(originTag(T, '      '));
+        lines.push(`      <geometry>\n        <mesh filename="package://${pkg}/${meshFile(p)}" scale="${u} ${u} ${u}"/>\n      </geometry>`);
+        lines.push('    </collision>');
+      } else if (o.collision === 'box') {
+        const an = pool.get(p.id).an;
+        const c = an.bbox.getCenter(V3()).multiplyScalar(p.unit);
+        const s = an.size.clone().multiplyScalar(p.unit);
+        lines.push('    <collision>');
+        lines.push(originTag(T.clone().multiply(T4(c.x, c.y, c.z)), '      '));
+        lines.push(`      <geometry>\n        <box size="${num(Math.max(s.x, 1e-4))} ${num(Math.max(s.y, 1e-4))} ${num(Math.max(s.z, 1e-4))}"/>\n      </geometry>`);
+        lines.push('    </collision>');
+      }
     }
     lines.push('  </link>');
     lines.push('');
@@ -2741,9 +2982,9 @@ function buildExport(o) {
 
   // Avisos de mallas
   const open = parts.filter((p) => !pool.get(p.id).an.watertight && !p.massOverride);
-  if (open.length) warnings.push({ k: 'warn', t: `Mallas no cerradas: ${open.map((p) => linkName.get(p.id)).join(', ')}. Su masa e inercia son aproximadas.` });
+  if (open.length) warnings.push({ k: 'warn', t: `Mallas no cerradas: ${open.map((p) => meshName.get(p.id)).join(', ')}. Su masa e inercia son aproximadas.` });
   const heavy = parts.filter((p) => pool.get(p.id).an.nT > 300000);
-  if (heavy.length) warnings.push({ k: 'warn', t: `Mallas pesadas (${heavy.map((p) => linkName.get(p.id)).join(', ')}): RViz y Gazebo irán lentos. Usa colisión "caja" o simplifica el STL.` });
+  if (heavy.length) warnings.push({ k: 'warn', t: `Mallas pesadas (${heavy.map((p) => meshName.get(p.id)).join(', ')}): RViz y Gazebo irán lentos. Usa colisión "caja" o simplifica el STL.` });
   if (!S.joints.size && parts.length > 1) warnings.push({ k: 'warn', t: 'No hay uniones: todas las piezas quedarán fijas a la base.' });
   if (!warnings.length) warnings.push({ k: 'ok', t: 'Todo listo: árbol válido, una sola raíz y límites coherentes.' });
 
@@ -2759,7 +3000,7 @@ function buildExport(o) {
   };
   if (o.worldLink) { tree.push(`    child(1):  ${linkName.get(mainId)}`); walkT(mainId, 2); } else walkT(mainId, 1);
 
-  return { robot, pkg, urdf, warnings, tree: tree.join('\n'), movable, linkName, order, massTotal, meshFile };
+  return { robot, pkg, urdf, warnings, tree: tree.join('\n'), movable, linkName, order, massTotal, meshFile, nLinks: order.length };
 }
 
 function packageFiles(o, ex) {
@@ -2914,7 +3155,7 @@ Paquete ROS 2 con la descripción URDF de **${robot}**, generado con Eslabón UR
 
 | Archivo | Para qué sirve |
 |---|---|
-| \`urdf/${robot}.urdf\` | Modelo del robot: ${S.parts.size} links, ${S.joints.size} uniones, ${movable.length} grados de libertad |
+| \`urdf/${robot}.urdf\` | Modelo del robot: ${ex.nLinks} links (${S.parts.size} piezas), ${S.joints.size} uniones, ${movable.length} grados de libertad |
 | \`meshes/*.stl\` | Mallas originales (escala ${unitLabel([...S.parts.values()][0].unit)} → m dentro del URDF) |
 | \`launch/display.launch.py\` | Abre RViz con \`robot_state_publisher\` y sliders de articulaciones |
 | \`config/initial_positions.yaml\` | Pose home de cada articulación |
@@ -3082,7 +3323,7 @@ function renderExport() {
   const dof = ex.movable.length;
   modal.append(h('div', { class: 'modal-card' },
     h('div', { class: 'modal-h' }, h('h2', { id: 'exportTitle' }, 'Generar URDF'),
-      h('span', { class: 'hint' }, `${S.parts.size} links · ${S.joints.size} uniones · ${dof} GDL · ${fmtMass(ex.massTotal)}`),
+      h('span', { class: 'hint' }, `${ex.nLinks} links (${S.parts.size} piezas) · ${S.joints.size} uniones · ${dof} GDL · ${fmtMass(ex.massTotal)}`),
       h('button', { class: 'btn sm icon-btn ghost', 'aria-label': 'Cerrar', title: 'Cerrar (Esc)', onclick: closeExport }, iconEl('close'))),
     h('div', { class: 'modal-opts' },
       h('label', { class: 'field' }, h('span', null, 'Nombre del paquete'), pkgIn),
@@ -3202,7 +3443,8 @@ async function copyPlain(text, okMsg) {
 function snapshot() {
   return {
     app: 'eslabon-urdf', v: 1, robotName: S.robotName, baseId: S.baseId, isExample: S.isExample, seq: S.seq, colorIdx: S.colorIdx,
-    parts: [...S.parts.values()].map((p) => ({ id: p.id, name: p.name, fileName: p.fileName, unit: p.unit, rest: p.rest.toArray(), color: p.color, mat: p.mat, density: p.density, infill: p.infill, walls: p.walls, massOverride: p.massOverride })),
+    parts: [...S.parts.values()].map((p) => ({ id: p.id, name: p.name, fileName: p.fileName, unit: p.unit, rest: p.rest.toArray(), color: p.color, mat: p.mat, density: p.density, infill: p.infill, walls: p.walls, massOverride: p.massOverride,
+      fusedTo: p.fusedTo || null, fuseMate: p.fuseMate ? { Lc: p.fuseMate.Lc.toArray(), Lp: p.fuseMate.Lp.toArray(), flip: p.fuseMate.flip, angle: p.fuseMate.angle, offset: p.fuseMate.offset } : null })),
     joints: [...S.joints.values()].map((j) => ({
       id: j.id, name: j.name, parent: j.parent, child: j.child, type: j.type, axis: j.axis, sign: j.sign,
       framePos: j.framePos.toArray(), holeQuat: j.holeQuat.toArray(), worldQuat: j.worldQuat.toArray(), spin: j.spin, frameMode: j.frameMode,
@@ -3219,6 +3461,8 @@ function restore(s) {
     let p = S.parts.get(sp.id);
     if (!p) p = newPartObject(sp.id, {});
     Object.assign(p, { name: sp.name, fileName: sp.fileName, unit: sp.unit, color: sp.color, mat: MATERIALS[sp.mat] ? sp.mat : 'pla', density: sp.density ?? 1000, infill: sp.infill ?? 20, walls: sp.walls ?? 1.2, massOverride: sp.massOverride ?? null });
+    p.fusedTo = sp.fusedTo || null;
+    p.fuseMate = sp.fuseMate ? { Lc: M4().fromArray(sp.fuseMate.Lc), Lp: M4().fromArray(sp.fuseMate.Lp), flip: sp.fuseMate.flip, angle: sp.fuseMate.angle, offset: sp.fuseMate.offset } : null;
     p.rest = M4().fromArray(sp.rest);
     if (!p.mesh) makePartMesh(p);
     parts.set(p.id, p);
@@ -3459,6 +3703,14 @@ function exampleParts() {
   pz.holes.push(hole(0, 0, 4.5));
   const pzG = toXZ(ext(pz, 8), 38); pzG.translate(95, 0, 186);
   out.push({ name: 'pinza', file: 'pinza.stl', mat: 'petg', color: '#2A9D8F', geo: pzG });
+  // servos (componentes fijos que se fusionan a su pieza)
+  const servo = (z0, y0, name, host) => {
+    const s = new THREE.Shape();
+    s.moveTo(-10, z0); s.lineTo(10, z0); s.lineTo(10, z0 + 40); s.lineTo(-10, z0 + 40); s.lineTo(-10, z0);
+    out.push({ name, file: `${name}.stl`, mat: 'abs', color: '#2E4FA3', geo: toXZ(ext(s, 22), y0), host, mass: 0.055 });
+  };
+  servo(66, -14, 'servo_hombro', 'torreta');
+  servo(176, 14, 'servo_codo', 'brazo');
   return out;
 }
 async function loadExample() {
@@ -3468,6 +3720,7 @@ async function loadExample() {
   for (const d of defs) {
     const p = await addPartFromSTL(geometryToBinarySTL(d.geo), d.file, 0.001, { name: d.name, mat: d.mat, color: d.color });
     ids[d.name] = p.id;
+    if (d.mass) p.massOverride = d.mass;
   }
   const mk = (name, parent, child, pos, holeAxis, axis, lo, hi, act, home) => {
     const j = newJoint({ name, parent: ids[parent], child: ids[child] });
@@ -3483,6 +3736,7 @@ async function loadExample() {
   mk('hombro', 'torreta', 'brazo', V3(0, 14, 76), EY, 'y', -90, 90, 'ds3218', 15);
   mk('codo', 'brazo', 'antebrazo', V3(0, 22, 186), EY, 'y', -135, 135, 'mg996r', -40);
   mk('muneca', 'antebrazo', 'pinza', V3(95, 30, 186), EY, 'y', -90, 90, 'sg90', 25);
+  for (const d of defs) if (d.host) S.parts.get(ids[d.name]).fusedTo = ids[d.host];
   S.robotName = 'brazo_ejemplo';
   S.baseId = ids.base_link;
   S.isExample = true;
@@ -3545,6 +3799,7 @@ function wireUI() {
     else if (k === 'g') setTool('move');
     else if (k === 'r') setTool('rotate');
     else if (k === 'j') setTool('joint');
+    else if (k === 'u') setTool('fuse');
     else if (k === 'f') fitView();
     else if (k === 'delete' || k === 'backspace') { ev.preventDefault(); deleteSelected(); }
   });
