@@ -8,6 +8,7 @@ Arma el URDF de tu robot para **ROS 2** sin escribir XML. Sube los STL de tus pi
 
 - Importa STL (mm, cm, m o pulgadas) y detecta solo el centro y el eje de agujeros, flechas y bordes circulares.
 - Une piezas en dos clics. *Encajar piezas* las acomoda como un joint de Fusion; *Ya están en posición* respeta las coordenadas de tu ensamble.
+- Fusiona componentes fijos (servos, tapas, soportes, tornillería) con la pieza a la que van pegados: en el URDF quedan como un solo link con varios visuales y una masa e inercia combinadas.
 - Seis grados de libertad por unión (girar o deslizar en X, Y o Z), unión fija o giro continuo, con vista previa animada antes de elegir.
 - Materiales (PLA, PETG, aluminio, acero, latón…) con relleno de impresión: calcula masa, centro de masa e inercia de cada malla.
 - Límites, actuadores comunes (SG90, MG996R, DS3218, Dynamixel, NEMA 17/23), pose home y elección de la pieza base.
