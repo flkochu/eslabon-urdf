@@ -2892,7 +2892,7 @@ function buildExport(o) {
   const colorName = (p) => `${p.mat}_${p.color.replace('#', '').toLowerCase()}`;
   const colors = new Map();
   for (const p of parts) colors.set(colorName(p), p.color);
-  const rgba = (hex) => { const c = new THREE.Color(hex); return `${num(c.r, 3)} ${num(c.g, 3)} ${num(c.b, 3)} 1`; };
+  const rgba = (hex) => `${srgbStr(hex)} 1`;   // tal cual el hex: THREE.Color lo pasaría a lineal y RViz lo vería oscuro
   const meshFile = (p) => `meshes/${meshName.get(p.id)}.stl`;
 
   const lines = [];
