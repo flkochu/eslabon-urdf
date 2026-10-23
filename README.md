@@ -1,6 +1,6 @@
 # Eslabón URDF
 
-Arma el URDF de tu robot para **ROS 2** sin escribir XML. Sube los STL de tus piezas, únelas por el centro de sus agujeros como en un ensamble de Fusion 360 o SolidWorks, elige el grado de libertad de cada unión y descarga un paquete ROS 2 listo para RViz.
+Arma el URDF de tu robot para **ROS 2** sin escribir XML. Sube los STL de tus piezas, únelas por el centro de sus agujeros como en un ensamble de Fusion 360 o SolidWorks, elige el grado de libertad de cada unión y descarga un paquete ROS 2 listo para RViz. El mismo robot sale también para **Blender** (`.glb`) y **MuJoCo** (MJCF), y de cada pieza puedes sacar su **hoja de despiece**.
 
 **Úsalo aquí → https://flkochu.github.io/eslabon-urdf/**
 
@@ -14,6 +14,9 @@ Arma el URDF de tu robot para **ROS 2** sin escribir XML. Sube los STL de tus pi
 - Límites, actuadores comunes (SG90, MG996R, DS3218, Dynamixel, NEMA 17/23), pose home y elección de la pieza base.
 - Jerarquía del robot en árbol y vista tipo `check_urdf`.
 - Exporta un paquete ROS 2 completo: URDF, mallas, `display.launch.py` con RViz y sliders, `initial_positions.yaml`, SRDF para MoveIt y README.
+- Exporta a **Blender** (`.glb`, glTF 2.0): cada link es un objeto que gira sobre su unión con los mismos ejes del URDF, con sus límites como propiedades y una animación que prueba cada articulación. Desde Blender puedes sacar FBX.
+- Exporta a **MuJoCo** (MJCF): mismo árbol, masas e inercias, un actuador con slider por articulación y la pose home.
+- **Hoja de despiece** de cualquier pieza: vistas frontal, superior y lateral (sistema europeo o americano) con líneas ocultas, isométrico, cotas generales, radios y tabla de agujeros y cilindros. Sale en PDF o SVG para imprimir a escala, y en DXF 1:1 con una capa por vista para redibujarla en Fusion 360 o SolidWorks.
 
 ## Cómo se usa
 
@@ -29,6 +32,19 @@ cd ~/ros2_ws && colcon build --packages-select mi_robot_description
 source install/setup.bash
 ros2 launch mi_robot_description display.launch.py
 ```
+
+## Otros formatos
+
+**Blender.** En *Generar URDF › Otros formatos › Blender (.glb)*. En Blender: *Archivo › Importar › glTF 2.0*. Cada link es un Empty: selecciónalo y gíralo sobre su eje local (por ejemplo `R Z Z`) para mover la unión; sus límites están en *Propiedades del objeto › Propiedades personalizadas*. Dale Play para ver la animación de prueba. Para FBX: *Archivo › Exportar › FBX*.
+
+**MuJoCo.** En *Generar URDF › Otros formatos › MuJoCo (.zip)*:
+
+```bash
+pip install mujoco
+python -m mujoco.viewer --mjcf=mi_robot.xml
+```
+
+**Hoja de despiece.** Selecciona una pieza y, en el inspector, *Plano de la pieza › Hoja de despiece*. Para rehacerla en Fusion 360: *Insertar › Insertar DXF*, elige un plano, unidades mm y "Un boceto por capa"; cada vista llega como boceto con los agujeros como círculos exactos y los redondeos como arcos. Las medidas salen de la malla STL: verifica las críticas con calibrador.
 
 ## Privacidad
 

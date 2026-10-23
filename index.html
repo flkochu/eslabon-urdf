@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="Arma el URDF de tu robot para ROS 2 desde STL: une piezas por el centro de sus agujeros, elige el grado de libertad, materiales y home, y descarga el paquete ROS 2.">
+<meta name="description" content="Arma el URDF de tu robot para ROS 2 desde STL: une piezas por el centro de sus agujeros, elige el grado de libertad, materiales y home, y descarga el paquete ROS 2. También exporta a Blender (.glb), MuJoCo y hojas de despiece.">
 <meta property="og:title" content="Eslabón URDF">
 <meta property="og:description" content="Arma el URDF de tu robot para ROS 2 desde STL: une piezas por el centro de sus agujeros, elige el grado de libertad, materiales y home, y descarga el paquete ROS 2.">
 <meta property="og:type" content="website">
@@ -337,6 +337,13 @@ input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid
 .modal-f .hint { margin-right: auto; }
 .warns { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .files { font: 400 12px/1.6 var(--font-mono); color: var(--muted); white-space: pre; overflow-x: auto; }
+.fmt { display: flex; flex-direction: column; gap: 6px; }
+.sheet-view { overflow: auto; background: var(--surface-3); padding: 16px; min-height: 0; min-width: 0; }
+.sheet-paper { background: #fff; box-shadow: var(--shadow); margin: 0 auto; max-width: 1000px; line-height: 0; }
+.sheet-paper svg { display: block; width: 100%; height: auto; }
+.sheet-paper.busy { aspect-ratio: 11 / 8.5; display: grid; place-items: center; line-height: 1.4; color: #586370; font-size: 13px; }
+.tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.fmt .hint { font-size: 12px; }
 
 /* ── Reportes ──────────────────────────────────── */
 .modal-card.narrow { width: min(640px, 100%); grid-template-rows: auto minmax(0, 1fr) auto; }
@@ -464,6 +471,7 @@ a.btn.primary { color: var(--accent-ink); }
 </div>
 
 <div class="modal" id="exportModal" hidden role="dialog" aria-modal="true" aria-labelledby="exportTitle"></div>
+<div class="modal" id="sheetModal" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div>
 <div class="modal" id="reportModal" hidden role="dialog" aria-modal="true" aria-labelledby="reportTitle"></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
@@ -510,10 +518,11 @@ try {
 // ── Datos de la app y contacto (cámbialos aquí) ────────────────────
 const APP = {
   name: 'Eslabón URDF',
-  version: '1.2.0',
+  version: '1.3.0',
   repo: 'flkochu/eslabon-urdf',                       // repo de GitHub donde llegan los reportes
   author: 'Adán López Lozano',
   authorUrl: 'https://github.com/flkochu',
+  site: 'flkochu.github.io/eslabon-urdf',
   email: ['lopezlozanoadan1', 'gmail.com'].join('@'), // se arma en JS para que no lo lean los bots
 };
 
@@ -643,6 +652,7 @@ const ICONS = {
   message: '<path d="M4 5.5h16v10.5H10l-6 4.5z"/><path d="M8 9.5h8M8 12.5h5"/>',
   github: '<path d="M9 19c-4 1.3-4-2-6-2.5M15 21v-3.5a3 3 0 0 0-.9-2.4c3-.3 6.1-1.5 6.1-6.6a5.2 5.2 0 0 0-1.4-3.6 4.8 4.8 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a12.7 12.7 0 0 0-6.6 0C5.8 1 4.7 1.3 4.7 1.3a4.8 4.8 0 0 0-.1 3.6A5.2 5.2 0 0 0 3.2 8.5c0 5.1 3.1 6.3 6.1 6.6a3 3 0 0 0-.9 2.3V21"/>',
   mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>',
+  sheet: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="12.5" cy="14" r="3"/><path d="M12.5 9.5v9M8 14h9"/>',
   fuse: '<rect x="3" y="8" width="10.5" height="10.5" rx="2.2"/><rect x="10.5" y="5" width="10.5" height="10.5" rx="2.2"/><path d="M10.5 11.2h3v3.2" stroke-width="2.6"/>',
 };
 function svgIcon(name) {
@@ -2482,7 +2492,7 @@ function inspectNone() {
     h('li', null, h('div', null, h('b', null, 'Fusiona lo que va fijo con '), h('span', { class: 'kbd' }, 'U'), h('p', null, 'Servos, tapas o tornillería pegados a una pieza se vuelven un solo link del URDF; su masa se suma.'))),
     h('li', null, h('div', null, h('b', null, 'Elige el grado de libertad'), h('p', null, 'Gira o desliza en X, Y o Z. Pasa el mouse por cada opción para ver cómo se mueve antes de elegir.'))),
     h('li', null, h('div', null, h('b', null, 'Material, límites y home'), h('p', null, 'PLA, aluminio, etc. para calcular masa e inercia; límites del servo y la pose de inicio.'))),
-    h('li', null, h('div', null, h('b', null, 'Genera el URDF'), h('p', null, 'Copia el XML o descarga el paquete ROS 2 listo para colcon build y RViz.'))))));
+    h('li', null, h('div', null, h('b', null, 'Genera el URDF'), h('p', null, 'Copia el XML o descarga el paquete ROS 2 listo para colcon build y RViz. También sale para Blender (.glb) y MuJoCo.'))))));
   out.push(sec('¿Algo no funciona?',
     h('div', { class: 'hint' }, 'Si encuentras un error, una pieza que no se une bien o tienes una idea, avísame. Los reportes llegan directo a quien mantiene Eslabón.'),
     h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => openReport('bug') }, iconEl('bug'), 'Reportar un error'),
@@ -2546,6 +2556,9 @@ function inspectPart(p) {
       h('dt', null, 'Ixx · Iyy · Izz'), h('dd', null, `${sci(ip.I[0][0])} · ${sci(ip.I[1][1])} · ${sci(ip.I[2][2])} kg·m²`)),
     h('label', { class: 'field' }, h('span', null, 'Masa real medida (opcional)'), h('div', { class: 'unit-input' }, massIn, h('em', null, 'g'))),
     an.watertight ? null : h('div', { class: 'note warn' }, `La malla no está cerrada (${an.open} bordes abiertos). La masa y la inercia son aproximadas; si puedes, pésala y escribe la masa real.`)));
+  out.push(sec('Plano de la pieza',
+    h('div', { class: 'hint' }, 'Vistas acotadas, tabla de agujeros y DXF 1:1 para redibujarla en Fusion o SolidWorks.'),
+    h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => openSheet(p.id) }, iconEl('sheet'), 'Hoja de despiece'))));
 
   // Unidades
   const useg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Unidades del archivo' });
@@ -2879,7 +2892,7 @@ function buildExport(o) {
   const colorName = (p) => `${p.mat}_${p.color.replace('#', '').toLowerCase()}`;
   const colors = new Map();
   for (const p of parts) colors.set(colorName(p), p.color);
-  const rgba = (hex) => { const c = new THREE.Color(hex); return `${num(c.r, 3)} ${num(c.g, 3)} ${num(c.b, 3)} 1`; };
+  const rgba = (hex) => `${srgbStr(hex)} 1`;   // tal cual el hex: THREE.Color lo pasaría a lineal y RViz lo vería oscuro
   const meshFile = (p) => `meshes/${meshName.get(p.id)}.stl`;
 
   const lines = [];
@@ -2896,6 +2909,7 @@ function buildExport(o) {
     lines.push('');
   }
   let massTotal = 0;
+  const links = [];      // datos de cada link para los otros formatos (MJCF, GLB)
   const matNote = (p) => `${(MATERIALS[p.mat] || MATERIALS.pla).n}${p.massOverride ? ', masa medida' : MATERIALS[p.mat]?.printed ? `, relleno ${p.infill}%` : ''}`;
   for (const id of order) {
     const body = bodyParts(id).map((pid) => S.parts.get(pid));
@@ -2917,6 +2931,7 @@ function buildExport(o) {
       for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) I[r][c] += it.I[r][c] + it.m * ((r === c ? dd : 0) - d[r] * d[c]);
     }
     massTotal += mass;
+    links.push({ id, name: linkName.get(id), mass, com, I, items });
     if (body.length > 1) lines.push(`  <!-- Cuerpo fusionado: ${body.map((p) => `${p.name} (${matNote(p)})`).join(' + ')} -->`);
     else lines.push(`  <!-- ${matNote(body[0])} -->`);
     lines.push(`  <link name="${linkName.get(id)}">`);
@@ -2954,11 +2969,13 @@ function buildExport(o) {
     lines.push('  </link>');
     lines.push('');
   }
-  const movable = [];
+  const movable = [], jointList = [];
   for (const it of joints) {
     const j = it.j;
     const name = j ? jointName.get(j.id) : it.name;
     const type = j ? j.type : 'fixed';
+    const jl = { name, type, parentId: it.parent, childId: it.child, origin: it.origin, axis: null, lo: 0, hi: 0, effort: 0, vel: 0, home: 0 };
+    jointList.push(jl);
     lines.push(`  <joint name="${name}" type="${type}">`);
     lines.push(`    <parent link="${linkName.get(it.parent)}"/>`);
     lines.push(`    <child link="${linkName.get(it.child)}"/>`);
@@ -2971,6 +2988,7 @@ function buildExport(o) {
       if (type === 'continuous') lines.push(`    <limit effort="${num(l.effort, 4)}" velocity="${num(l.vel, 4)}"/>`);
       else lines.push(`    <limit lower="${num(Math.min(l.lo, l.hi) - shift)}" upper="${num(Math.max(l.lo, l.hi) - shift)}" effort="${num(l.effort, 4)}" velocity="${num(l.vel, 4)}"/>`);
       movable.push({ name, home: o.homeAsZero ? 0 : j.home, j });
+      Object.assign(jl, { axis: a, lo: Math.min(l.lo, l.hi) - shift, hi: Math.max(l.lo, l.hi) - shift, effort: l.effort, vel: l.vel, home: o.homeAsZero ? 0 : j.home });
       if (type !== 'continuous' && l.lo >= l.hi) warnings.push({ k: 'warn', t: `${name}: el límite mínimo no es menor que el máximo.` });
       if (!(l.effort > 0) || !(l.vel > 0)) warnings.push({ k: 'warn', t: `${name}: torque/fuerza o velocidad en 0. Gazebo y MoveIt necesitan valores mayores a cero.` });
     }
@@ -3000,7 +3018,8 @@ function buildExport(o) {
   };
   if (o.worldLink) { tree.push(`    child(1):  ${linkName.get(mainId)}`); walkT(mainId, 2); } else walkT(mainId, 1);
 
-  return { robot, pkg, urdf, warnings, tree: tree.join('\n'), movable, linkName, order, massTotal, meshFile, nLinks: order.length };
+  return { robot, pkg, urdf, warnings, tree: tree.join('\n'), movable, linkName, order, massTotal, meshFile, nLinks: order.length,
+    links, joints: jointList, W, meshName, colorName };
 }
 
 function packageFiles(o, ex) {
@@ -3184,6 +3203,260 @@ ${o.homeAsZero ? '- La pose home se usó como posición cero del URDF.\n' : ''}`
   return files;
 }
 
+// ── MuJoCo (MJCF) ──────────────────────────────────────────────────
+// Mismo árbol que el URDF: cada link es un <body> dentro de su padre y la unión vive en el
+// origen del hijo. Agrega actuadores (sliders en el visor de MuJoCo) y la pose home como keyframe.
+const wxyz = (q) => `${num(q.w)} ${num(q.x)} ${num(q.y)} ${num(q.z)}`;
+function mjPose(m) {
+  const d = decompose(m);
+  return `pos="${xyzStr(d.p)}"${1 - Math.abs(d.q.w) < 1e-12 ? '' : ` quat="${wxyz(d.q)}"`}`;
+}
+function srgbStr(hex) {
+  const n = parseInt(String(hex).replace('#', ''), 16) || 0;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => num(v / 255, 3)).join(' ');
+}
+// Ganancias estables con el paso de 2 ms: la armadura (inercia del motor vista en la unión)
+// crece con el torque, así que la frecuencia natural queda cerca de 60 rad/s (300 en lineales).
+function mjGains(jt) {
+  const lin = jt.type === 'prismatic';
+  const effort = Math.max(jt.effort, lin ? 1 : 0.05);
+  const armature = lin ? clamp(effort * 0.001, 0.005, 1) : clamp(effort * 0.005, 0.0002, 0.2);
+  const kp = effort / (lin ? 0.01 : 0.05);          // fuerza máxima con 1 cm o ~3° de error
+  // En ruedas (control de velocidad) el actuador ya amortigua: la unión solo lleva una fricción mínima.
+  const damping = jt.type === 'continuous' ? 0.01 * effort : 2 * Math.sqrt(kp * armature);
+  return { armature, kp, damping, kv: effort / Math.max(0.2 * jt.vel, 0.05) };
+}
+function buildMJCF(o, ex) {
+  const { robot, links, joints, meshName, colorName } = ex;
+  const linkById = new Map(links.map((l) => [l.id, l]));
+  const kidsOf = new Map();
+  for (const jt of joints) { if (!kidsOf.has(jt.parentId)) kidsOf.set(jt.parentId, []); kidsOf.get(jt.parentId).push(jt); }
+  const parts = links.flatMap((l) => l.items.map((it) => it.p));
+  let floorZ = 0;
+  for (const p of parts) floorZ = Math.min(floorZ, worldBox(p, ex.W.get(p.id)).min.z);
+  const mats = new Map();
+  for (const p of parts) mats.set(colorName(p), p);
+
+  const body = [], qpos = [], acts = [];
+  const emit = (id, depth, jt) => {
+    const l = linkById.get(id);
+    const pad = '  '.repeat(depth);
+    body.push(`${pad}<body name="${l.name}"${jt ? ` ${mjPose(jt.origin)}` : ''}>`);
+    if (!jt) body.push(`${pad}  <!-- Base fija al mundo. Para un robot móvil agrega aquí <freejoint/>. -->`);
+    else if (jt.axis) {
+      const g = mjGains(jt), a = jt.axis;
+      const range = jt.type === 'continuous' ? '' : ` range="${num(jt.lo)} ${num(jt.hi)}"`;
+      body.push(`${pad}  <joint name="${jt.name}" type="${jt.type === 'prismatic' ? 'slide' : 'hinge'}" axis="${num(a.x)} ${num(a.y)} ${num(a.z)}"${range} armature="${sci(g.armature)}" damping="${sci(g.damping)}"/>`);
+      qpos.push(jt.home);
+      acts.push({ jt, g });
+    }
+    const I = l.I;
+    body.push(`${pad}  <inertial pos="${xyzStr(l.com)}" mass="${num(l.mass, 6)}" fullinertia="${sci(I[0][0])} ${sci(I[1][1])} ${sci(I[2][2])} ${sci(I[0][1])} ${sci(I[0][2])} ${sci(I[1][2])}"/>`);
+    for (const { p, T } of l.items) body.push(`${pad}  <geom class="visual" mesh="${meshName.get(p.id)}" ${mjPose(T)} material="${colorName(p)}"/>`);
+    for (const { p, T } of l.items) {
+      if (o.collision === 'mesh') body.push(`${pad}  <geom class="collision" mesh="${meshName.get(p.id)}" ${mjPose(T)}/>`);
+      else if (o.collision === 'box') {
+        const an = pool.get(p.id).an;
+        const c = an.bbox.getCenter(V3()).multiplyScalar(p.unit);
+        const s = an.size.clone().multiplyScalar(p.unit / 2);
+        body.push(`${pad}  <geom class="collision" type="box" size="${num(Math.max(s.x, 5e-5))} ${num(Math.max(s.y, 5e-5))} ${num(Math.max(s.z, 5e-5))}" ${mjPose(T.clone().multiply(T4(c.x, c.y, c.z)))}/>`);
+      }
+    }
+    for (const k of kidsOf.get(id) || []) emit(k.childId, depth + 1, k);
+    body.push(`${pad}</body>`);
+  };
+  emit(ex.order[0], 2, null);
+
+  const L = [];
+  L.push(`<!-- ${robot}: modelo MuJoCo (MJCF) generado con Eslabón URDF (${new Date().toISOString().slice(0, 10)}).`);
+  L.push('     Unidades: metros, radianes, kilogramos. Mismo árbol, masas e inercias que el URDF.');
+  L.push(`     Ábrelo con:  python -m mujoco.viewer --mjcf=${robot}.xml -->`);
+  L.push(`<mujoco model="${robot}">`);
+  L.push('  <compiler angle="radian" meshdir="meshes" autolimits="true" balanceinertia="true"/>');
+  L.push('  <option timestep="0.002" integrator="implicitfast"/>');
+  L.push('  <visual>\n    <global azimuth="135" elevation="-22"/>\n  </visual>');
+  L.push('');
+  L.push('  <default>');
+  L.push('    <!-- visual: solo se ve. collision: choca con el piso pero no entre piezas del robot, porque');
+  L.push('         en un ensamble las mallas se tocan. Para que dos links choquen, cambia su contype/conaffinity. -->');
+  L.push('    <default class="visual">\n      <geom type="mesh" contype="0" conaffinity="0" group="2" density="0"/>\n    </default>');
+  L.push('    <default class="collision">\n      <geom type="mesh" contype="2" conaffinity="1" group="3" density="0"/>\n    </default>');
+  L.push('  </default>');
+  L.push('');
+  L.push('  <asset>');
+  L.push('    <texture name="cuadricula" type="2d" builtin="checker" rgb1=".22 .25 .29" rgb2=".17 .19 .22" width="512" height="512" mark="edge" markrgb=".32 .36 .4"/>');
+  L.push('    <material name="piso" texture="cuadricula" texrepeat="10 10" texuniform="true"/>');
+  for (const [n, p] of mats) L.push(`    <material name="${n}" rgba="${srgbStr(p.color)} 1"${MATERIALS[p.mat]?.metal ? ' specular="0.8" shininess="0.6"' : ''}/>`);
+  for (const p of parts) {
+    const u = num(p.unit, 6);
+    L.push(`    <mesh name="${meshName.get(p.id)}" file="${meshName.get(p.id)}.stl" scale="${u} ${u} ${u}"/>`);
+  }
+  L.push('  </asset>');
+  L.push('');
+  L.push('  <worldbody>');
+  L.push('    <light name="sol" pos="0 0 2" dir="0 0 -1" directional="true"/>');
+  L.push(`    <geom name="piso" type="plane" size="0 0 0.05" pos="0 0 ${num(floorZ)}" material="piso" contype="1" conaffinity="2"/>`);
+  L.push(...body);
+  L.push('  </worldbody>');
+  if (acts.length) {
+    L.push('');
+    L.push('  <!-- Un actuador por articulación: posición (las ruedas, velocidad). forcerange = torque o fuerza del actuador elegido. -->');
+    L.push('  <actuator>');
+    for (const { jt, g } of acts) {
+      const force = jt.effort > 0 ? ` forcerange="${num(-jt.effort, 4)} ${num(jt.effort, 4)}"` : '';
+      if (jt.type === 'continuous') L.push(`    <velocity name="${jt.name}" joint="${jt.name}" kv="${sci(g.kv)}" ctrlrange="${num(-jt.vel, 4)} ${num(jt.vel, 4)}"${force}/>`);
+      else L.push(`    <position name="${jt.name}" joint="${jt.name}" kp="${sci(g.kp)}" ctrlrange="${num(jt.lo)} ${num(jt.hi)}"${force}/>`);
+    }
+    L.push('  </actuator>');
+    L.push('');
+    L.push('  <keyframe>');
+    L.push(`    <key name="home" qpos="${qpos.map((q) => num(q)).join(' ')}" ctrl="${acts.map(({ jt }) => num(jt.type === 'continuous' ? 0 : jt.home)).join(' ')}"/>`);
+    L.push('  </keyframe>');
+  }
+  L.push('</mujoco>');
+  return L.join('\n') + '\n';
+}
+function mujocoFiles(o, ex, xml) {
+  const dir = `${ex.robot}_mujoco`;
+  const files = [{ path: `${dir}/${ex.robot}.xml`, data: xml }];
+  for (const p of S.parts.values()) files.push({ path: `${dir}/meshes/${ex.meshName.get(p.id)}.stl`, data: new Uint8Array(pool.get(p.id).stl) });
+  const wheels = ex.joints.some((jt) => jt.type === 'continuous');
+  files.push({ path: `${dir}/README.md`, data: `# ${ex.robot} · MuJoCo
+
+Modelo MJCF de **${ex.robot}** generado con Eslabón URDF: el mismo árbol, masas e inercias que el URDF.
+
+## Abrirlo
+
+\`\`\`bash
+pip install mujoco
+python -m mujoco.viewer --mjcf=${ex.robot}.xml
+\`\`\`
+
+- Panel derecho › **Control**: un slider por articulación${wheels ? ' (las ruedas se controlan por velocidad)' : ''}.
+- Panel izquierdo › **Simulation › Key**: carga la pose \`home\`.
+- La base está fija al mundo. Para un robot móvil agrega \`<freejoint/>\` dentro del primer \`<body>\`.
+
+## Desde Python
+
+\`\`\`python
+import mujoco, mujoco.viewer
+m = mujoco.MjModel.from_xml_path('${ex.robot}.xml')
+d = mujoco.MjData(m)
+mujoco.mj_resetDataKeyframe(m, d, 0)   # pose home
+mujoco.viewer.launch(m, d)
+\`\`\`
+
+## Notas
+
+- Las piezas del robot no chocan entre sí, solo con el piso: en un ensamble las mallas se tocan y la simulación saltaría.
+- Para los choques MuJoCo usa la envolvente convexa de cada malla.
+- \`kp\`, \`armature\` y \`damping\` son un punto de partida estable; ajústalos a tu actuador real.
+` });
+  return files;
+}
+
+// ── Blender (glTF binario .glb) ────────────────────────────────────
+// glTF es Y arriba y ROS es Z arriba. Conjugar cada transformación con este giro hace que, al
+// importar en Blender (que regresa a Z arriba), cada objeto conserve el marco exacto de su link.
+const ZUP_TO_YUP = M4().makeRotationX(-Math.PI / 2);
+const toYup = (m) => ZUP_TO_YUP.clone().multiply(m).multiply(inv(ZUP_TO_YUP));
+async function buildGLB(ex) {
+  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  const setLocal = (obj, m) => m.decompose(obj.position, obj.quaternion, obj.scale);
+  const taken = new Set(ex.links.map((l) => l.name));
+  const fresh = (base) => { const n = uniqueName(base, taken); taken.add(n); return n; };
+  const root = new THREE.Group();
+  root.name = fresh(ex.robot);
+  root.userData = { generado_con: `${APP.name} ${APP.version}`, unidades: 'metros; límites en grados o mm' };
+  const mats = new Map(), geos = [];
+  const matOf = (p) => {
+    const k = ex.colorName(p);
+    if (!mats.has(k)) {
+      const metal = !!MATERIALS[p.mat]?.metal;
+      mats.set(k, new THREE.MeshStandardMaterial({ name: k, color: p.color, metalness: metal ? 0.8 : 0, roughness: metal ? 0.35 : 0.6 }));
+    }
+    return mats.get(k);
+  };
+  const geoOf = (p) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', pool.get(p.id).geo.getAttribute('position').clone());
+    g.applyMatrix4(ZUP_TO_YUP.clone().multiply(M4().makeScale(p.unit, p.unit, p.unit)));
+    g.computeVertexNormals();               // normales planas: algunos STL las traen en cero
+    const m = mergeVertices(g, 1e-6);       // comparte vértices con la misma posición y normal
+    geos.push(g, m);
+    return m;
+  };
+  const node = new Map();
+  for (const l of ex.links) {
+    const g = new THREE.Group();
+    g.name = l.name;
+    g.userData = { link: l.name, masa_g: Number((l.mass * 1000).toFixed(2)) };
+    for (const { p, T } of l.items) {
+      const m = new THREE.Mesh(geoOf(p), matOf(p));
+      m.name = fresh(`${ex.meshName.get(p.id)}_malla`);
+      setLocal(m, toYup(T));
+      g.add(m);
+    }
+    node.set(l.id, g);
+  }
+  // Cada unión mueve el objeto de su link hijo en sus ejes locales (los mismos del URDF).
+  // La animación prueba las articulaciones una por una: home → máximo → mínimo → home.
+  const tracks = [];
+  let t0 = 0;
+  for (const jt of ex.joints) {
+    const child = node.get(jt.childId);
+    node.get(jt.parentId).add(child);
+    setLocal(child, toYup(jt.origin));
+    child.userData.union = jt.name;
+    if (!jt.axis) { child.userData.tipo = 'fija'; continue; }
+    const lin = jt.type === 'prismatic', f = lin ? 1000 : 1 / DEG, a = jt.axis;
+    const k = Math.abs(a.x) > 0.5 ? 'x' : Math.abs(a.y) > 0.5 ? 'y' : 'z';
+    Object.assign(child.userData, {
+      tipo: lin ? 'desliza' : jt.type === 'continuous' ? 'gira sin límite' : 'gira',
+      eje_local: `${a[k] < 0 ? '-' : '+'}${k.toUpperCase()}`,
+      unidad: lin ? 'mm' : 'grados',
+    });
+    if (jt.type !== 'continuous') Object.assign(child.userData, { minimo: Number((jt.lo * f).toFixed(2)), maximo: Number((jt.hi * f).toFixed(2)) });
+    child.userData.home = Number((jt.home * f).toFixed(2));
+    const way = jt.type === 'continuous' ? [0, 2 * Math.PI] : [0, jt.hi, jt.lo, 0];
+    const total = way.slice(1).reduce((s, q, i) => s + Math.abs(q - way[i]), 0);
+    if (!(total > 1e-9)) continue;
+    const dur = jt.type === 'continuous' ? 2.5 : 3;
+    const maxStep = lin ? Infinity : 10 * DEG;     // muestras cada ≤10° para que el giro no tome el camino corto
+    const times = [], qs = [];
+    let t = t0;
+    way.forEach((q, i) => {
+      if (i === 0) { times.push(t); qs.push(q); return; }
+      const dq = q - way[i - 1], n = Math.max(1, Math.ceil(Math.abs(dq) / maxStep)), dt = dur * Math.abs(dq) / total;
+      for (let s = 1; s <= n; s++) { times.push(t + dt * s / n); qs.push(way[i - 1] + dq * s / n); }
+      t += dt;
+    });
+    const vals = [];
+    let prev = null;
+    for (const q of qs) {
+      const mo = lin ? T4(a.x * q, a.y * q, a.z * q) : M4().makeRotationAxis(a, q);
+      const d = decompose(toYup(jt.origin.clone().multiply(mo)));
+      if (lin) vals.push(d.p.x, d.p.y, d.p.z);
+      else {
+        if (prev && prev.dot(d.q) < 0) d.q.set(-d.q.x, -d.q.y, -d.q.z, -d.q.w);   // signo continuo para Blender
+        vals.push(d.q.x, d.q.y, d.q.z, d.q.w);
+        prev = d.q;
+      }
+    }
+    tracks.push(lin ? new THREE.VectorKeyframeTrack(`${child.name}.position`, times, vals)
+      : new THREE.QuaternionKeyframeTrack(`${child.name}.quaternion`, times, vals));
+    t0 = t + 0.4;
+  }
+  root.add(node.get(ex.order[0]));
+  const animations = tracks.length ? [new THREE.AnimationClip('probar_uniones', -1, tracks)] : [];
+  try {
+    return await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: false, trs: true, animations });
+  } finally {
+    geos.forEach((g) => g.dispose());
+    mats.forEach((m) => m.dispose());
+  }
+}
+
 // ── ZIP (sin dependencias, con deflate nativo cuando existe) ───────
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -3303,11 +3576,13 @@ function renderExport() {
     return c;
   };
   const files = packageFiles(EXP, ex);
-  const tabs = [['urdf', `${ex.robot}.urdf`], ['tree', 'Árbol'], ['launch', 'display.launch.py'], ['files', 'Paquete']];
+  const mjcf = buildMJCF(EXP, ex);
+  const tabs = [['urdf', `${ex.robot}.urdf`], ['tree', 'Árbol'], ['launch', 'display.launch.py'], ['files', 'Paquete'], ['mjcf', 'MuJoCo (MJCF)']];
   const code = h('pre', { class: 'code', id: 'exportCode', tabindex: '0' });
   if (EXP.tab === 'urdf') code.innerHTML = highlightXml(ex.urdf);
   else if (EXP.tab === 'tree') code.textContent = ex.tree;
   else if (EXP.tab === 'launch') code.textContent = files.find((f) => f.path.endsWith('display.launch.py')).data;
+  else if (EXP.tab === 'mjcf') code.innerHTML = highlightXml(mjcf);
   else {
     const sizes = files.map((f) => `${f.path.padEnd(48)} ${(typeof f.data === 'string' ? new TextEncoder().encode(f.data).length : f.data.length).toLocaleString('es-MX').padStart(10)} B`);
     code.textContent = `${sizes.join('\n')}\n\n# Compilar y probar\ncd ~/ros2_ws/src && unzip ${ex.pkg}.zip\ncd ~/ros2_ws && colcon build --packages-select ${ex.pkg}\nsource install/setup.bash\nros2 launch ${ex.pkg} display.launch.py`;
@@ -3320,6 +3595,21 @@ function renderExport() {
     catch (e) { toast('No pude crear el .zip.', 'err'); }
     zipBtn.disabled = false; zipBtn.lastChild.textContent = 'Descargar paquete ROS 2 (.zip)';
   } }, iconEl('download'), h('span', null, 'Descargar paquete ROS 2 (.zip)'));
+  // Otros formatos: mismo robot, otro programa.
+  const busyBtn = (label, fn) => {
+    const b = h('button', { class: 'btn block', onclick: async () => {
+      b.disabled = true; b.lastChild.textContent = 'Preparando…';
+      try { await fn(); }
+      catch (e) { logError(`Exportar ${label}: ${e && e.message}`); toast(`No pude generar ${label}.`, 'err', 6000, { label: 'Reportar', fn: () => openReport('bug') }); }
+      b.disabled = false; b.lastChild.textContent = label;
+    } }, iconEl('download'), h('span', null, label));
+    return b;
+  };
+  const glbBtn = busyBtn('Blender (.glb)', async () => {
+    const glb = await buildGLB(ex);
+    await saveFile(`${ex.robot}.glb`, new Blob([glb], { type: 'model/gltf-binary' }));
+  });
+  const mjBtn = busyBtn('MuJoCo (.zip)', async () => saveFile(`${ex.robot}_mujoco.zip`, await makeZip(mujocoFiles(EXP, ex, mjcf))));
   const dof = ex.movable.length;
   modal.append(h('div', { class: 'modal-card' },
     h('div', { class: 'modal-h' }, h('h2', { id: 'exportTitle' }, 'Generar URDF'),
@@ -3336,7 +3626,10 @@ function renderExport() {
         h('div', { class: 'sec-h' }, 'Revisión'),
         h('ul', { class: 'warns' }, ex.warnings.map((w) => h('li', { class: `note ${w.k}` }, w.t))),
         h('div', { class: 'sec-h' }, 'Qué incluye el .zip'),
-        h('div', { class: 'hint' }, 'URDF con masas e inercias, tus STL, launch de RViz con sliders, pose home (YAML y SRDF para MoveIt) y un README con los comandos.'))),
+        h('div', { class: 'hint' }, 'URDF con masas e inercias, tus STL, launch de RViz con sliders, pose home (YAML y SRDF para MoveIt) y un README con los comandos.'),
+        h('div', { class: 'sec-h' }, 'Otros formatos'),
+        h('div', { class: 'fmt' }, glbBtn, h('div', { class: 'hint' }, 'Para Blender: Archivo › Importar › glTF 2.0. Cada link es un objeto que gira sobre su unión, con sus límites como propiedades y una animación que prueba cada articulación. ¿Necesitas FBX? Expórtalo desde Blender.')),
+        h('div', { class: 'fmt' }, mjBtn, h('div', { class: 'hint' }, 'Simulación con física en MuJoCo: mismas masas e inercias, un actuador con slider por articulación y la pose home. Se abre con ', h('span', { class: 'mono' }, 'python -m mujoco.viewer'), '.')))),
     h('div', { class: 'modal-f' }, h('span', { class: 'hint' }, '¿El URDF no carga en RViz? ', h('button', { class: 'btn sm ghost', style: 'height:24px;padding:0 6px;color:var(--accent)', onclick: () => { closeExport(); openReport('bug'); } }, 'Repórtalo')), copyBtn, zipBtn)));
 }
 async function copyText(text, fallbackEl) {
@@ -3345,6 +3638,820 @@ async function copyText(text, fallbackEl) {
     if (fallbackEl) { const r = document.createRange(); r.selectNodeContents(fallbackEl); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
     toast('Seleccioné el texto: cópialo con Ctrl+C.', 'warn');
   }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  05 · hoja de despiece: plano de una pieza (vistas, cotas y agujeros)
+// ════════════════════════════════════════════════════════════════════
+
+// ── Agujeros y cilindros ───────────────────────────────────────────
+// Bordes circulares cerrados (los mismos del snap) agrupados por eje y radio: dos bordes
+// coaxiales del mismo diámetro son las bocas de un agujero o las tapas de un cilindro.
+function canonAxis(v) {
+  const k = Math.abs(v.x) >= Math.abs(v.y) && Math.abs(v.x) >= Math.abs(v.z) ? 'x' : Math.abs(v.y) >= Math.abs(v.z) ? 'y' : 'z';
+  return v[k] < 0 ? v.clone().negate() : v.clone();
+}
+const axisName = (v) => (Math.abs(v.x) > 0.999 ? 'X' : Math.abs(v.y) > 0.999 ? 'Y' : Math.abs(v.z) > 0.999 ? 'Z' : '—');
+
+function partRay(p) {
+  const e = pool.get(p.id);
+  if (BVH && !e.geo.boundsTree) { try { e.geo.computeBoundsTree(); } catch (err) { /* sin BVH */ } }
+  const mesh = new THREE.Mesh(e.geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  mesh.updateMatrixWorld(true);
+  const rc = new THREE.Raycaster();
+  rc.firstHitOnly = true;
+  const ray = (origin, dir, near = 0) => { rc.set(origin, dir); rc.near = near; rc.far = Infinity; return rc.intersectObject(mesh, false)[0] || null; };
+  ray.fast = !!e.geo.boundsTree;
+  ray.dispose = () => mesh.material.dispose();
+  return ray;
+}
+
+// ¿Hueco o macizo? Mira la pared junto al borde: en un agujero su normal apunta hacia el eje.
+function rimSide(an, center, axis, r) {
+  const u = (Math.abs(axis.x) < 0.9 ? EX : EY).clone().projectOnPlane(axis).normalize(), w = axis.clone().cross(u);
+  let vote = 0;
+  for (let k = 0; k < 6; k++) {
+    const dir = u.clone().multiplyScalar(Math.cos(k * Math.PI / 3)).addScaledVector(w, Math.sin(k * Math.PI / 3));
+    const e = nearestFeatureEdge(an, center.clone().addScaledVector(dir, r), Math.max(r * 0.15, an.diag * 1e-4));
+    if (e < 0) continue;
+    let best = -1, bestA = 0.9;
+    for (const f of [an.EF0[e], an.EF1[e]]) {
+      if (f < 0) continue;
+      const a = Math.abs(an.FN[3 * f] * axis.x + an.FN[3 * f + 1] * axis.y + an.FN[3 * f + 2] * axis.z);
+      if (a < bestA) { bestA = a; best = f; }
+    }
+    if (best >= 0) vote += Math.sign(an.FN[3 * best] * dir.x + an.FN[3 * best + 1] * dir.y + an.FN[3 * best + 2] * dir.z);
+  }
+  return vote < 0 ? 'hole' : vote > 0 ? 'boss' : null;
+}
+
+function partFeatures(p) {
+  const e = pool.get(p.id);
+  if (e.feats) return e.feats;
+  const an = e.an;
+  const circles = [], seen = new Set();
+  for (const fe of an.featE) {
+    const c = an.loopCache.has(fe) ? an.loopCache.get(fe) : loopFor(an, fe);
+    if (c && c.closed && !seen.has(c)) { seen.add(c); circles.push(c); }
+  }
+  const tol = Math.max(an.diag * 1e-3, 1e-9);
+  const groups = [];
+  for (const c of circles) {
+    const g = groups.find((g) => Math.abs(g.axis.dot(c.normal)) > 0.999 && Math.abs(g.r - c.radius) < Math.max(tol, c.radius * 0.02)
+      && c.center.clone().sub(g.c0).projectOnPlane(g.axis).length() < Math.max(tol, c.radius * 0.05));
+    if (g) g.rims.push(c); else groups.push({ axis: canonAxis(c.normal), c0: c.center.clone(), r: c.radius, rims: [c] });
+  }
+  const ray = partRay(p);
+  const feats = [];
+  for (const g of groups) {
+    if (g.rims.length < 2) continue;              // un solo borde: chaflán o escalón
+    const ts = g.rims.map((c) => c.center.clone().sub(g.c0).dot(g.axis));
+    const t0 = Math.min(...ts), t1 = Math.max(...ts);
+    if (t1 - t0 < tol) continue;
+    const r = g.rims.reduce((s, c) => s + c.radius, 0) / g.rims.length;
+    const bottom = g.c0.clone().addScaledVector(g.axis, t0), top = g.c0.clone().addScaledVector(g.axis, t1);
+    const kind = rimSide(an, top, g.axis, r);
+    if (!kind) continue;
+    let through = false, entry = top;
+    if (kind === 'hole') {
+      // Rayos dentro del agujero (a 0.7 r del eje, para no colarse por un agujero menor coaxial).
+      const side = (Math.abs(g.axis.x) < 0.9 ? EX : EY).clone().projectOnPlane(g.axis).normalize().multiplyScalar(0.7 * r);
+      const mid = bottom.clone().lerp(top, 0.5), half = (t1 - t0) / 2;
+      const closed = (dir) => [1, -1].every((sg) => { const hit = ray(mid.clone().addScaledVector(side, sg), dir); return !!hit && hit.distance < half + 2 * tol; });
+      const up = closed(g.axis), down = closed(g.axis.clone().negate());
+      through = !up && !down;
+      if (up && !down) entry = bottom;           // ciego desde abajo: la boca es el borde inferior
+    }
+    feats.push({ kind, through, axis: g.axis, top, bottom, entry, r, depth: t1 - t0 });
+  }
+  ray.dispose();
+  const q = (v) => Math.round(v / tol);
+  feats.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'hole' ? -1 : 1) || q(b.r) - q(a.r) || q(a.top.x) - q(b.top.x) || q(a.top.y) - q(b.top.y) || q(a.top.z) - q(b.top.z));
+  let nh = 0, nb = 0;
+  for (const f of feats) f.id = f.kind === 'hole' ? `A${++nh}` : `C${++nb}`;
+  e.feats = feats;
+  return feats;
+}
+
+// ── Vistas ─────────────────────────────────────────────────────────
+// Base de cada vista: r = derecha, u = arriba, n = hacia quien mira. Todo en ejes del STL.
+const SHEET_FRONTS = {
+  y: { r: EX, u: EZ },   // mirando hacia +Y, Z arriba
+  z: { r: EX, u: EY },   // mirando hacia −Z: piezas planas o CAD con Y arriba
+  x: { r: EY, u: EZ },   // mirando hacia −X
+};
+function viewBases(front) {
+  const r = SHEET_FRONTS[front].r.clone(), u = SHEET_FRONTS[front].u.clone(), n = r.clone().cross(u);
+  const iv = n.clone().add(r).add(u).normalize(), ir = u.clone().cross(iv).normalize();
+  return {
+    front: { r, u, n },
+    top: { r: r.clone(), u: n.clone().negate(), n: u.clone() },
+    right: { r: n.clone().negate(), u: u.clone(), n: r.clone() },
+    left: { r: n.clone(), u: u.clone(), n: r.clone().negate() },
+    iso: { r: ir, u: iv.clone().cross(ir), n: iv },
+  };
+}
+// Vista frontal sugerida: la que ve de frente más agujeros; si no hay, la cara más grande.
+function autoFront(p) {
+  const cnt = { x: 0, y: 0, z: 0 };
+  for (const f of partFeatures(p)) { const k = axisName(f.axis).toLowerCase(); if (k in cnt) cnt[k] += f.kind === 'hole' ? 2 : 1; }
+  const sz = pool.get(p.id).an.size;
+  return ['y', 'z', 'x'].sort((a, b) => cnt[b] - cnt[a] || sz[a] - sz[b])[0];
+}
+
+// Aristas vivas + siluetas proyectadas; cada arista se parte donde algo la tapa (rayo hacia quien mira).
+function viewGeometry(p, B, withHidden, ray, feats) {
+  const an = pool.get(p.id).an;
+  const { P, EA, EB, EF0, EF1, FN, FA, isFeat } = an;
+  const o = an.bbox.min, n = B.n, r = B.r, u = B.u;
+  const X = (x, y, z) => (x - o.x) * r.x + (y - o.y) * r.y + (z - o.z) * r.z;
+  const Y = (x, y, z) => (x - o.x) * u.x + (y - o.y) * u.y + (z - o.z) * u.z;
+  const dn = (f) => FN[3 * f] * n.x + FN[3 * f + 1] * n.y + FN[3 * f + 2] * n.z;
+  const vis = [], hid = [];
+  const eps = an.diag * 2e-5, step = an.diag / 90, Q = V3();
+  for (let e = 0, nE = EA.length; e < nE; e++) {
+    if (!isFeat[e]) {
+      const f0 = EF0[e], f1 = EF1[e];
+      if (f1 < 0 || !(FA[f0] > 0) || !(FA[f1] > 0) || (dn(f0) > 1e-6) === (dn(f1) > 1e-6)) continue;
+    }
+    const a = 3 * EA[e], b = 3 * EB[e];
+    const x1 = X(P[a], P[a + 1], P[a + 2]), y1 = Y(P[a], P[a + 1], P[a + 2]);
+    const x2 = X(P[b], P[b + 1], P[b + 2]), y2 = Y(P[b], P[b + 1], P[b + 2]);
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len < an.diag * 1e-7) continue;
+    if (!ray) { vis.push(x1, y1, x2, y2); continue; }
+    const k = Math.min(24, Math.ceil(len / step));
+    const flush = (i0, i1, v) => { if (v || withHidden) (v ? vis : hid).push(x1 + (x2 - x1) * i0 / k, y1 + (y2 - y1) * i0 / k, x1 + (x2 - x1) * i1 / k, y1 + (y2 - y1) * i1 / k); };
+    let start = 0, cur = true;
+    for (let i = 0; i < k; i++) {
+      const t = (i + 0.5) / k;
+      Q.set(P[a] + (P[b] - P[a]) * t, P[a + 1] + (P[b + 1] - P[a + 1]) * t, P[a + 2] + (P[b + 2] - P[a + 2]) * t).addScaledVector(n, eps);
+      const v = !ray(Q, n, eps);
+      if (i === 0) cur = v;
+      else if (v !== cur) { flush(start, i, cur); start = i; cur = v; }
+    }
+    flush(start, k, cur);
+  }
+  // Sin repetidos (en un perfil extruido la cara de atrás cae justo sobre la de enfrente).
+  const qq = an.diag * 1e-5;
+  const keyOf = (s, i) => {
+    const a = `${Math.round(s[i] / qq)},${Math.round(s[i + 1] / qq)}`, b = `${Math.round(s[i + 2] / qq)},${Math.round(s[i + 3] / qq)}`;
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  };
+  const uniq = (s, skip) => {
+    const out = [], seen = new Set();
+    for (let i = 0; i < s.length; i += 4) {
+      const k = keyOf(s, i);
+      if (seen.has(k) || (skip && skip.has(k))) continue;
+      seen.add(k); out.push(s[i], s[i + 1], s[i + 2], s[i + 3]);
+    }
+    return { out, seen };
+  };
+  const V = uniq(vis), H = uniq(hid, V.seen);
+  // Lo oculto que cae bajo una línea visible (mismo trazo, otra partición) se descarta.
+  const lineOf = (s, i) => {
+    let th = Math.atan2(s[i + 3] - s[i + 1], s[i + 2] - s[i]);
+    if (th < 0) th += Math.PI;
+    if (th >= Math.PI - 1e-6) th -= Math.PI;
+    const c = Math.cos(th), sn = Math.sin(th), d = -sn * s[i] + c * s[i + 1];
+    const ta = c * s[i] + sn * s[i + 1], tb = c * s[i + 2] + sn * s[i + 3];
+    return { k: `${Math.round(th * 1e4)}|${Math.round(d / (qq * 10))}`, c, sn, d, t0: Math.min(ta, tb), t1: Math.max(ta, tb) };
+  };
+  const cover = new Map();
+  for (let i = 0; i < V.out.length; i += 4) { const L = lineOf(V.out, i); if (!cover.has(L.k)) cover.set(L.k, []); cover.get(L.k).push([L.t0, L.t1]); }
+  const hidRest = [];
+  for (let i = 0; i < H.out.length; i += 4) {
+    const L = lineOf(H.out, i), iv = cover.get(L.k);
+    if (!iv) { hidRest.push(H.out[i], H.out[i + 1], H.out[i + 2], H.out[i + 3]); continue; }
+    let pieces = [[L.t0, L.t1]];
+    for (const [a, b] of iv) pieces = pieces.flatMap(([c, d]) => (b <= c || a >= d ? [[c, d]] : [[c, Math.max(c, a)], [Math.min(d, b), d]].filter(([u, w]) => w - u > qq * 50)));
+    for (const [a, b] of pieces) hidRest.push(L.c * a - L.sn * L.d, L.sn * a + L.c * L.d, L.c * b - L.sn * L.d, L.sn * b + L.c * L.d);
+  }
+  // Agujeros vistos de frente: el polígono de la malla se cambia por un círculo exacto.
+  const circles = [], marks = [], axes = [];
+  for (const f of feats) {
+    const d = Math.abs(f.axis.dot(n));
+    const x = X(f.top.x, f.top.y, f.top.z), y = Y(f.top.x, f.top.y, f.top.z);
+    if (d > 0.999) { circles.push({ x, y, r: f.r, vis: false, hid: false }); marks.push({ x, y, r: f.r, id: f.id }); }
+    else if (d < 0.001) axes.push({ x1: X(f.bottom.x, f.bottom.y, f.bottom.z), y1: Y(f.bottom.x, f.bottom.y, f.bottom.z), x2: x, y2: y });
+  }
+  const strip = (s, flag) => {
+    if (!circles.length) return s;
+    const out = [];
+    for (let i = 0; i < s.length; i += 4) {
+      const mx = (s[i] + s[i + 2]) / 2, my = (s[i + 1] + s[i + 3]) / 2;
+      const c = circles.find((c) => {
+        const tol = Math.max(c.r * 0.02, an.diag * 1e-4);
+        return Math.abs(Math.hypot(s[i] - c.x, s[i + 1] - c.y) - c.r) < tol && Math.abs(Math.hypot(s[i + 2] - c.x, s[i + 3] - c.y) - c.r) < tol
+          && Math.abs(Math.hypot(mx - c.x, my - c.y) - c.r) < Math.max(c.r * 0.09, tol);
+      });
+      if (c) c[flag] = true; else out.push(s[i], s[i + 1], s[i + 2], s[i + 3]);
+    }
+    return out;
+  };
+  const visS = simplifySegs(strip(V.out, 'vis'), qq), hidS = simplifySegs(strip(hidRest, 'hid'), qq);
+  const sz = an.size;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let c = 0; c < 8; c++) {
+    const cx = (c & 1) * sz.x, cy = ((c >> 1) & 1) * sz.y, cz = ((c >> 2) & 1) * sz.z;
+    const x = cx * r.x + cy * r.y + cz * r.z, y = cx * u.x + cy * u.y + cz * u.z;
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  }
+  const fit = fitArcs(visS, qq);
+  return { B, vis: visS, hid: hidS, lines: fit.lines, arcs: fit.arcs, circles, marks, axes, box: { x0, y0, x1, y1 }, approx: !ray };
+}
+function sheetView(p, front, key, hidden) {
+  const e = pool.get(p.id);
+  if (!e.sheetCache) e.sheetCache = new Map();
+  const ck = `${front}|${key}|${hidden ? 1 : 0}`;
+  if (!e.sheetCache.has(ck)) {
+    const ray = partRay(p);
+    // Sin BVH los rayos son lentos: en mallas grandes se dibujan todas las aristas.
+    e.sheetCache.set(ck, viewGeometry(p, viewBases(front)[key], hidden, ray.fast || e.an.nT < 20000 ? ray : null, partFeatures(p)));
+    ray.dispose();
+  }
+  return e.sheetCache.get(ck);
+}
+
+// ── Texto (métricas de Helvetica, para centrar en el PDF y partir renglones) ─
+const HELV_W = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556,
+  278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667,
+  944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500,
+  278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
+const HELV_X = { 'á': 556, 'é': 556, 'í': 278, 'ó': 556, 'ú': 556, 'ñ': 556, 'ü': 556, 'Á': 667, 'É': 667, 'Í': 278, 'Ó': 778, 'Ú': 722, 'Ñ': 722, '°': 400, 'Ø': 778, '±': 584, '·': 278, '×': 584, '³': 333, '²': 333, '…': 1000 };
+function textW(s, size, bold) {
+  let w = 0;
+  for (const ch of String(s)) { const c = ch.charCodeAt(0); w += c >= 32 && c <= 126 ? HELV_W[c - 32] : HELV_X[ch] || 556; }
+  return w / 1000 * size * (bold ? 1.06 : 1);
+}
+function fitText(s, width, size, bold) {
+  s = String(s);
+  if (textW(s, size, bold) <= width) return s;
+  while (s.length > 1 && textW(`${s}…`, size, bold) > width) s = s.slice(0, -1);
+  return `${s}…`;
+}
+function wrapText(s, width, size) {
+  const lines = [];
+  let cur = '';
+  for (const w of String(s).split(' ')) {
+    const t = cur ? `${cur} ${w}` : w;
+    if (cur && textW(t, size) > width) { lines.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// ── Hoja: lista de dibujo en mm (y hacia abajo), de donde salen el SVG y el PDF ─
+const SHEET_PAPERS = { carta: { n: 'Carta', w: 279.4, h: 215.9 }, a4: { n: 'A4', w: 297, h: 210 } };
+const SHEET_SCALES = [10, 5, 2, 1, 1 / 2, 1 / 5, 1 / 10, 1 / 20, 1 / 50];
+const scaleText = (s) => (s >= 1 ? `${s}:1` : `1:${Math.round(1 / s)}`);
+const VIEW_NAMES = { front: 'VISTA FRONTAL', top: 'VISTA SUPERIOR', left: 'VISTA LATERAL IZQUIERDA', right: 'VISTA LATERAL DERECHA' };
+const ST = {
+  vis: { w: 0.35 }, hid: { w: 0.18, dash: [1.6, 0.8], gray: 0.3 }, axis: { w: 0.13, dash: [5, 1, 0.6, 1], gray: 0.35 },
+  dim: { w: 0.13 }, thin: { w: 0.2 }, frame: { w: 0.5 },
+};
+
+function drawSheet(p, o) {
+  const paper = SHEET_PAPERS[o.paper] || SHEET_PAPERS.carta;
+  const W = paper.w, H = paper.h;
+  const an = pool.get(p.id).an, U = p.unit * 1000;
+  const feats = partFeatures(p);
+  const sideKey = o.system === 'iso-a' ? 'right' : 'left';
+  const view = (k) => sheetView(p, o.front, k, o.hidden && k !== 'iso');
+  const vF = view('front'), vT = view('top'), vS = view(sideKey), vI = view('iso');
+  const ext = (v) => ({ w: (v.box.x1 - v.box.x0) * U, h: (v.box.y1 - v.box.y0) * U });
+  const eF = ext(vF), eT = ext(vT), eS = ext(vS), eI = ext(vI);
+  const D = [];
+  const segs = (a, st) => D.push({ t: 'segs', a, ...st });
+  const circle = (cx, cy, r, st) => D.push({ t: 'circle', cx, cy, r, ...st });
+  const rect = (x, y, rw, rh, st) => D.push({ t: 'rect', x, y, rw, rh, ...st });
+  const text = (x, y, s, size, t = {}) => D.push({ t: 'text', x, y, s: String(s), size, anchor: t.anchor || 'start', rot: t.rot || 0, bold: !!t.bold, gray: t.gray || 0 });
+  const arrow = (x, y, dx, dy, L = 2.4, hw = 0.55) => D.push({ t: 'poly', pts: [x, y, x - dx * L - dy * hw, y - dy * L + dx * hw, x - dx * L + dy * hw, y - dy * L - dx * hw] });
+  const fmt = (v) => num(v, 2);
+
+  // Marco, columna derecha (notas, tabla, cajetín) y área de vistas
+  const m = 10, RC = 90, G = 18;
+  const fx = m, fy = m, fw = W - 2 * m, fh = H - 2 * m;
+  const ax = fx + 2, ay = fy + 2, aw = fw - RC - 10, ah = fh - 4;
+  let s = SHEET_SCALES[SHEET_SCALES.length - 1];
+  for (const c of SHEET_SCALES) if (c * (eF.w + eS.w) + 2 * G + 6 <= aw && c * (eF.h + eT.h) + 2 * G + 12 <= ah) { s = c; break; }
+  const at = {};
+  if (sideKey === 'left') {        // europeo: la superior va abajo y la lateral izquierda a la derecha
+    at.front = [ax + G, ay + 6];
+    at.side = [at.front[0] + s * eF.w + G, at.front[1]];
+    at.top = [at.front[0], at.front[1] + s * eF.h + G];
+  } else {                          // americano: la superior va arriba y la lateral derecha a la derecha
+    at.top = [ax + G, ay + 6];
+    at.front = [at.top[0], at.top[1] + s * eT.h + G];
+    at.side = [at.front[0] + s * eF.w + G, at.front[1]];
+  }
+  const mapper = (v, [x, y], sc) => ({
+    sc, x, y, w: (v.box.x1 - v.box.x0) * U * sc, h: (v.box.y1 - v.box.y0) * U * sc,
+    X: (px) => x + sc * U * (px - v.box.x0), Y: (py) => y + sc * U * (v.box.y1 - py),
+  });
+  const drawView = (v, M, ortho) => {
+    // Agujeros coaxiales (caja + pasante) comparten marca de centro y etiqueta.
+    const marks = [];
+    for (const c of v.marks) {
+      const g = marks.find((g) => Math.hypot(g.x - c.x, g.y - c.y) * U * M.sc < 0.3);
+      if (g) { g.ids.push(c.id); g.r = Math.max(g.r, c.r); } else marks.push({ x: c.x, y: c.y, r: c.r, ids: [c.id] });
+    }
+    const tr = (a) => { const out = new Array(a.length); for (let i = 0; i < a.length; i += 2) { out[i] = M.X(a[i]); out[i + 1] = M.Y(a[i + 1]); } return out; };
+    if (ortho) {
+      if (v.hid.length) segs(tr(v.hid), ST.hid);
+      for (const c of v.circles) if (c.hid && !c.vis) circle(M.X(c.x), M.Y(c.y), c.r * U * M.sc, ST.hid);
+      const cl = [];
+      for (const c of marks) { const R = c.r * U * M.sc + 1.5, x = M.X(c.x), y = M.Y(c.y); cl.push(x - R, y, x + R, y, x, y - R, x, y + R); }
+      for (const a of v.axes) {
+        const x1 = M.X(a.x1), y1 = M.Y(a.y1), x2 = M.X(a.x2), y2 = M.Y(a.y2);
+        const L = Math.hypot(x2 - x1, y2 - y1) || 1, ux = (x2 - x1) / L, uy = (y2 - y1) / L;
+        cl.push(x1 - ux * 1.5, y1 - uy * 1.5, x2 + ux * 1.5, y2 + uy * 1.5);
+      }
+      if (cl.length) segs(cl, ST.axis);
+    }
+    if (v.vis.length) segs(tr(v.vis), ST.vis);
+    if (!ortho) return;
+    for (const c of v.circles) if (c.vis) circle(M.X(c.x), M.Y(c.y), c.r * U * M.sc, ST.vis);
+    for (const c of marks) { const R = c.r * U * M.sc; text(M.X(c.x) + R * 0.72 + 1, M.Y(c.y) - R * 0.72 - 0.8, c.ids.join(', '), 2.2); }
+    if (ortho === 'radii') {
+      for (const a of v.arcs) {
+        if (a.sweep < 60 * DEG || a.r * U * M.sc < 1) continue;
+        // Flecha a 45° si cabe en el arco (no choca con las cotas de abajo ni con el eje)
+        const inArc = (t) => { let d = t - a.a0; while (d < 0) d += 2 * Math.PI; while (d >= 2 * Math.PI) d -= 2 * Math.PI; return d >= 10 * DEG && d <= a.sweep - 10 * DEG; };
+        const th = [45, -45, 135, -135].map((d) => d * DEG).find(inArc) ?? a.mid;
+        const R = a.r * U * M.sc, ux = Math.cos(th), uy = -Math.sin(th);   // y de la hoja va hacia abajo
+        const x = M.X(a.cx), y = M.Y(a.cy);
+        segs([x + ux * R * 0.35, y + uy * R * 0.35, x + ux * (R + 2.5), y + uy * (R + 2.5)], ST.dim);
+        arrow(x + ux * R, y + uy * R, ux, uy, 2, 0.5);
+        text(x + ux * (R + 3), y + uy * (R + 3) + 0.9, `R${fmt(a.r * U)}`, 2.3, { anchor: ux < -0.3 ? 'end' : ux > 0.3 ? 'start' : 'middle' });
+      }
+    }
+    const x0 = M.X(0), y0 = M.Y(0);          // origen (esquina mínima de la caja)
+    circle(x0, y0, 1.1, ST.thin);
+    segs([x0 - 1.9, y0, x0 + 1.9, y0, x0, y0 - 1.9, x0, y0 + 1.9], ST.thin);
+  };
+  const dimH = (x1, x2, yEdge, yDim, val) => {
+    segs([x1, yEdge + 1, x1, yDim + 1.5, x2, yEdge + 1, x2, yDim + 1.5, x1, yDim, x2, yDim], ST.dim);
+    arrow(x1, yDim, -1, 0); arrow(x2, yDim, 1, 0);
+    text((x1 + x2) / 2, yDim - 0.9, val, 2.5, { anchor: 'middle' });
+  };
+  const dimV = (y1, y2, xEdge, xDim, val) => {
+    segs([xEdge - 1, y1, xDim - 1.5, y1, xEdge - 1, y2, xDim - 1.5, y2, xDim, y1, xDim, y2], ST.dim);
+    arrow(xDim, y1, 0, -1); arrow(xDim, y2, 0, 1);
+    text(xDim - 0.9, (y1 + y2) / 2, val, 2.5, { anchor: 'middle', rot: -90 });
+  };
+  // Nombre de la vista y hacia dónde apuntan los ejes del STL en ella.
+  const label = (x, y, t, B) => {
+    text(x, y, t, 2.6, { bold: true });
+    if (!B) return;
+    const hk = ['x', 'y', 'z'].find((k) => Math.abs(B.r[k]) > 0.5), vk = ['x', 'y', 'z'].find((k) => Math.abs(B.u[k]) > 0.5);
+    const tx = x + textW(t, 2.6, true) + 4, ty = y - 0.4;
+    segs([tx, ty, tx + 3.4, ty, tx, ty, tx, ty - 3], ST.thin);
+    arrow(tx + 4.4, ty, 1, 0, 1.4, 0.45); arrow(tx, ty - 4, 0, -1, 1.4, 0.45);
+    text(tx + 5.2, ty + 0.8, `${B.r[hk] < 0 ? '-' : ''}${hk.toUpperCase()}`, 2.1);
+    text(tx + 0.9, ty - 3.2, `${B.u[vk] < 0 ? '-' : ''}${vk.toUpperCase()}`, 2.1);
+  };
+
+  const MF = mapper(vF, at.front, s), MT = mapper(vT, at.top, s), MS = mapper(vS, at.side, s);
+  drawView(vF, MF, 'radii'); drawView(vT, MT, true); drawView(vS, MS, true);
+  dimH(MF.x, MF.x + MF.w, MF.y + MF.h, MF.y + MF.h + 7, fmt(eF.w));
+  dimV(MF.y, MF.y + MF.h, MF.x, MF.x - 7, fmt(eF.h));
+  dimV(MT.y, MT.y + MT.h, MT.x, MT.x - 7, fmt(eT.h));
+  label(MF.x, MF.y + MF.h + 14.5, VIEW_NAMES.front, vF.B);
+  label(MT.x, MT.y + MT.h + 6, VIEW_NAMES.top, vT.B);
+  label(MS.x, MS.y + MS.h + 14.5, VIEW_NAMES[sideKey], vS.B);
+  // Isométrico en el hueco que queda
+  const cell = sideKey === 'left' ? [MS.x, MT.y, ax + aw, ay + ah] : [MS.x, ay, ax + aw, MF.y - 4];
+  const cw = cell[2] - cell[0] - 6, ch = cell[3] - cell[1] - 12;
+  if (cw > 20 && ch > 20 && eI.w > 0 && eI.h > 0) {
+    const si = Math.min(cw / eI.w, ch / eI.h, s * 1.5);
+    if (si * Math.max(eI.w, eI.h) >= 14) {
+      const MI = mapper(vI, [cell[0] + 3 + (cw - si * eI.w) / 2, cell[1] + 3 + (ch - si * eI.h) / 2], si);
+      drawView(vI, MI, false);
+      label(MI.x, MI.y + MI.h + 6, 'ISOMÉTRICO (sin escala)');
+    }
+  }
+
+  // Marco y pie
+  rect(fx, fy, fw, fh, ST.frame);
+  text(fx, H - 4.5, `Generado con ${APP.name} ${APP.version} · ${APP.site}`, 2, { gray: 0.4 });
+  text(fx + fw, H - 4.5, `${SHEET_PAPERS[o.paper]?.n || 'Carta'} · imprime al 100 %`, 2, { anchor: 'end', gray: 0.4 });
+
+  // Columna derecha
+  const cx = fx + fw - RC - 3, cwid = RC;
+  const ip = inertialOf(p), mat = MATERIALS[p.mat] || MATERIALS.pla;
+  const sz = an.size.clone().multiplyScalar(U);
+  const notes = [
+    `Cotas en mm. Tamaño total ${fmt(sz.x)} × ${fmt(sz.y)} × ${fmt(sz.z)} (X × Y × Z).`,
+    'Origen (0, 0, 0): esquina mínima de la caja envolvente, marcada con una cruz en cada vista. X, Y, Z son los ejes del archivo STL.',
+    `Medidas tomadas de la malla STL (${an.nT.toLocaleString('es-MX')} triángulos): verifica las cotas críticas con calibrador.`,
+  ];
+  if (!feats.length) notes.push('No se detectaron agujeros ni cilindros circulares.');
+  if (vF.approx) notes.push('Malla muy pesada para quitar líneas ocultas: se dibujaron todas las aristas.');
+  let ny = fy + 6;
+  text(cx, ny, 'NOTAS', 2.6, { bold: true });
+  ny += 4.6;
+  notes.forEach((t, i) => {
+    wrapText(t, cwid - 4, 2.3).forEach((ln, k) => { if (k === 0) text(cx, ny, `${i + 1}.`, 2.3); text(cx + 3.6, ny, ln, 2.3); ny += 3.3; });
+    ny += 0.7;
+  });
+
+  // Cajetín
+  const TB = 48.5, ty0 = fy + fh - TB - 3;
+  const cellBox = (x, y, w, hh, lab, val, bold) => {
+    rect(x, y, w, hh, ST.thin);
+    text(x + 1.2, y + 2.4, lab, 1.7, { gray: 0.35 });
+    if (val) text(x + 1.2, y + hh - 1.6, fitText(val, w - 2.4, 2.6, bold), 2.6, { bold });
+  };
+  rect(cx, ty0, cwid, 11, ST.thin);
+  text(cx + 1.2, ty0 + 2.6, 'PIEZA', 1.7, { gray: 0.35 });
+  text(cx + cwid - 1.2, ty0 + 2.6, 'HOJA DE DESPIECE', 1.7, { anchor: 'end', bold: true, gray: 0.35 });
+  text(cx + 1.2, ty0 + 9.2, fitText(p.name, cwid - 2.4, 4.4, true), 4.4, { bold: true });
+  const first = sideKey === 'left';
+  const rows = [
+    [['ROBOT', S.robotName], ['MATERIAL', `${mat.n}${mat.printed ? ` · ${p.infill}%` : ''}`]],
+    [['MASA', `${fmtMass(ip.mass)}${p.massOverride ? ' (medida)' : ''}`], ['VOLUMEN', `${(ip.V * 1e6).toFixed(2)} cm³`]],
+    [['ESCALA', scaleText(s)], ['PROYECCIÓN', first ? 'ISO-E' : 'ISO-A']],
+    [['FECHA', new Date().toISOString().slice(0, 10)], ['DIBUJÓ', '']],
+    [['ARCHIVO', p.fileName]],
+  ];
+  let yy = ty0 + 11;
+  for (const r of rows) {
+    const w = cwid / r.length;
+    r.forEach(([lab, val], i) => cellBox(cx + i * w, yy, w, 7.5, lab, val));
+    yy += 7.5;
+  }
+  // Símbolo de proyección (cono truncado): círculos a la izquierda en 1er diedro, a la derecha en 3er diedro.
+  const sx = cx + cwid - 15, sy = ty0 + 11 + 2 * 7.5 + 4.4, R1 = 1.9, R2 = 1, L = 5;
+  const trap = (x0) => segs([x0, sy - R1, x0 + L, sy - R2, x0 + L, sy - R2, x0 + L, sy + R2, x0 + L, sy + R2, x0, sy + R1, x0, sy + R1, x0, sy - R1], ST.thin);
+  const rings = (c) => { circle(c, sy, R1, ST.thin); circle(c, sy, R2, ST.thin); };
+  if (first) { rings(sx + R1); trap(sx + 2 * R1 + 1.4); } else { trap(sx); rings(sx + L + 1.4 + R1); }
+
+  // Tabla de agujeros y cilindros, pegada arriba del cajetín
+  if (feats.length) {
+    const cols = [['ID', 7], ['Tipo', 18], ['Ø', 11], ['Prof.', 12], ['X', 11], ['Y', 11], ['Z', 11], ['Eje', 9]];
+    const rowH = 4.4;
+    const maxRows = Math.max(2, Math.floor((ty0 - 5 - (ny + 6) - rowH) / rowH));
+    const shown = feats.length > maxRows ? feats.slice(0, maxRows - 1) : feats;
+    const nRows = shown.length + (shown.length < feats.length ? 1 : 0);
+    const tTop = ty0 - 4 - (nRows + 1) * rowH;
+    text(cx, tTop - 1.8, 'AGUJEROS Y CILINDROS', 2.6, { bold: true });
+    rect(cx, tTop, cwid, rowH, { fill: 0.9 });
+    rect(cx, tTop, cwid, (nRows + 1) * rowH, ST.thin);
+    const grid = [];
+    for (let i = 1; i <= nRows; i++) grid.push(cx, tTop + i * rowH, cx + cwid, tTop + i * rowH);
+    let gx = cx;
+    for (const [, w] of cols.slice(0, -1)) { gx += w; grid.push(gx, tTop, gx, tTop + (nRows + 1) * rowH); }
+    segs(grid, { w: 0.13 });
+    const row = (vals, y, bold) => { let x = cx; cols.forEach(([, w], i) => { text(x + w / 2, y + rowH - 1.25, vals[i], 2.2, { anchor: 'middle', bold }); x += w; }); };
+    row(cols.map((c) => c[0]), tTop, true);
+    shown.forEach((f, i) => {
+      const pt = f.entry.clone().sub(an.bbox.min).multiplyScalar(U);
+      row([f.id, f.kind === 'boss' ? 'Cilindro' : f.through ? 'Pasante' : 'Ciego', fmt(2 * f.r * U), fmt(f.depth * U), fmt(pt.x), fmt(pt.y), fmt(pt.z), axisName(f.axis)], tTop + (i + 1) * rowH);
+    });
+    if (shown.length < feats.length) text(cx + 1.5, tTop + nRows * rowH + rowH - 1.25, `… y ${feats.length - shown.length} más (el DXF los trae todos)`, 2.2);
+  }
+  return { items: D, W, H, s, feats, size: sz, title: `${p.name} · hoja de despiece` };
+}
+
+// ── Salidas: SVG, PDF y DXF ────────────────────────────────────────
+// Une segmentos que comparten punta en polilíneas (archivo más chico y guiones continuos).
+function chainSegs(a, q = 0.004) {
+  const n = a.length / 4, key = (x, y) => `${Math.round(x / q)},${Math.round(y / q)}`;
+  const ends = new Map();
+  const add = (k, i) => { let l = ends.get(k); if (!l) ends.set(k, (l = [])); l.push(i); };
+  for (let i = 0; i < n; i++) { add(key(a[4 * i], a[4 * i + 1]), i); add(key(a[4 * i + 2], a[4 * i + 3]), i); }
+  const used = new Uint8Array(n);
+  const take = (k) => { const l = ends.get(k); while (l && l.length) { const i = l.pop(); if (!used[i]) { used[i] = 1; return i; } } return -1; };
+  const grow = (pts, x, y) => {
+    for (;;) {
+      const k = key(x, y), i = take(k);
+      if (i < 0) return;
+      const fromA = key(a[4 * i], a[4 * i + 1]) === k;
+      x = fromA ? a[4 * i + 2] : a[4 * i]; y = fromA ? a[4 * i + 3] : a[4 * i + 1];
+      pts.push(x, y);
+    }
+  };
+  const lines = [];
+  for (let s = 0; s < n; s++) {
+    if (used[s]) continue;
+    used[s] = 1;
+    const fwd = [a[4 * s], a[4 * s + 1], a[4 * s + 2], a[4 * s + 3]], back = [];
+    grow(fwd, a[4 * s + 2], a[4 * s + 3]);
+    grow(back, a[4 * s], a[4 * s + 1]);
+    const pts = [];
+    for (let i = back.length - 2; i >= 0; i -= 2) pts.push(back[i], back[i + 1]);
+    lines.push(pts.concat(fwd));
+  }
+  return lines;
+}
+// Junta tramos alineados en una sola línea (un arco de la malla visto de canto son decenas de tramos).
+function simplifySegs(a, q) {
+  const out = [];
+  for (const pl of chainSegs(a, q)) {
+    let ax = pl[0], ay = pl[1];
+    for (let i = 2; i < pl.length; i += 2) {
+      const bx = pl[i], by = pl[i + 1];
+      if (i + 2 < pl.length) {
+        const d1x = bx - ax, d1y = by - ay, d2x = pl[i + 2] - bx, d2y = pl[i + 3] - by;
+        const l = Math.hypot(d1x, d1y) * Math.hypot(d2x, d2y);
+        if (l > 0 && Math.abs(d1x * d2y - d1y * d2x) < 1e-4 * l && d1x * d2x + d1y * d2y > 0) continue;
+      }
+      out.push(ax, ay, bx, by);
+      ax = bx; ay = by;
+    }
+  }
+  return out;
+}
+// Reconoce arcos en las polilíneas (extremos redondeados, filetes): para el DXF y las cotas de radio.
+// Pide ≥5 puntos sobre un círculo, giro parejo de ≤36° por tramo (un hexágono no cuenta) y tramos
+// de largo parecido (así no se come el lado recto que sigue a un redondeo).
+function fitArcs(a, q) {
+  const lines = [], arcs = [];
+  for (let pl of chainSegs(a, q)) {
+    // Contorno cerrado: empieza en la esquina más marcada para no partir un arco en dos.
+    if (pl.length > 6 && Math.hypot(pl[0] - pl[pl.length - 2], pl[1] - pl[pl.length - 1]) <= q) {
+      const m = pl.length / 2 - 1;
+      let best = 0, bestT = -1;
+      for (let k = 0; k < m; k++) {
+        const a0 = (k + m - 1) % m, a1 = (k + 1) % m;
+        const ux = pl[2 * k] - pl[2 * a0], uy = pl[2 * k + 1] - pl[2 * a0 + 1], vx = pl[2 * a1] - pl[2 * k], vy = pl[2 * a1 + 1] - pl[2 * k + 1];
+        const t = Math.abs(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy));
+        if (t > bestT) { bestT = t; best = k; }
+      }
+      const body = pl.slice(0, 2 * m);
+      pl = body.slice(2 * best).concat(body.slice(0, 2 * best), body.slice(2 * best, 2 * best + 2));
+    }
+    const n = pl.length / 2;
+    const turn = (k) => {
+      const ux = pl[2 * k] - pl[2 * k - 2], uy = pl[2 * k + 1] - pl[2 * k - 1], vx = pl[2 * k + 2] - pl[2 * k], vy = pl[2 * k + 3] - pl[2 * k + 1];
+      return Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
+    };
+    const segLen = (k) => Math.hypot(pl[2 * k + 2] - pl[2 * k], pl[2 * k + 3] - pl[2 * k + 1]);
+    let i = 0;
+    while (i < n - 1) {
+      let best = -1, bestFit = null, dir = 0, lo = Infinity, hi = 0;
+      for (let k = i; k < Math.min(i + 4, n - 1); k++) { lo = Math.min(lo, segLen(k)); hi = Math.max(hi, segLen(k)); }
+      for (let j = i + 4; j < n; j++) {
+        const t = turn(j - 1);
+        lo = Math.min(lo, segLen(j - 1)); hi = Math.max(hi, segLen(j - 1));
+        if (hi > 3 * lo) break;
+        if (j === i + 4) {
+          dir = Math.sign(turn(i + 1));
+          let ok = dir !== 0;
+          for (let k = i + 1; k <= j - 1 && ok; k++) { const tk = turn(k); ok = Math.sign(tk) === dir && Math.abs(tk) > 1e-3 && Math.abs(tk) <= 36 * DEG; }
+          if (!ok) break;
+        } else if (Math.sign(t) !== dir || Math.abs(t) < 1e-3 || Math.abs(t) > 36 * DEG) break;
+        const xs = [], ys = [];
+        for (let k = i; k <= j; k++) { xs.push(pl[2 * k]); ys.push(pl[2 * k + 1]); }
+        const c = fitCircle2D(xs, ys);
+        if (!c || c.res > 0.004) break;
+        best = j; bestFit = c;
+      }
+      if (best > 0) {
+        const ang = (k) => Math.atan2(pl[2 * k + 1] - bestFit.cy, pl[2 * k] - bestFit.cx);
+        let sweep = 0;
+        for (let k = i + 1; k <= best; k++) { let d = ang(k) - ang(k - 1); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; sweep += d; }
+        arcs.push({ cx: bestFit.cx, cy: bestFit.cy, r: bestFit.r, a0: sweep > 0 ? ang(i) : ang(best), a1: sweep > 0 ? ang(best) : ang(i), sweep: Math.abs(sweep), mid: ang(i) + sweep / 2 });
+        i = best;
+      } else { lines.push(pl[2 * i], pl[2 * i + 1], pl[2 * i + 2], pl[2 * i + 3]); i++; }
+    }
+  }
+  return { lines, arcs };
+}
+const grayHex = (g) => { const v = Math.round((g || 0) * 255).toString(16).padStart(2, '0'); return `#${v}${v}${v}`; };
+function sheetSVG(sh) {
+  const f = (v) => num(v, 2);
+  const stroke = (it) => `fill="none" stroke="${grayHex(it.gray)}" stroke-width="${f(it.w || 0.2)}"${it.dash ? ` stroke-dasharray="${it.dash.map(f).join(' ')}"` : ''} stroke-linecap="${it.dash ? 'butt' : 'round'}" stroke-linejoin="round"`;
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${f(sh.W)}mm" height="${f(sh.H)}mm" viewBox="0 0 ${f(sh.W)} ${f(sh.H)}" font-family="Helvetica, Arial, sans-serif">`,
+    `<title>${escXml(sh.title)}</title>`, `<rect width="${f(sh.W)}" height="${f(sh.H)}" fill="#fff"/>`];
+  for (const it of sh.items) {
+    if (it.t === 'segs') out.push(`<path d="${chainSegs(it.a).map((pl) => `M${f(pl[0])} ${f(pl[1])}L${pl.slice(2).map(f).join(' ')}`).join('')}" ${stroke(it)}/>`);
+    else if (it.t === 'rect') out.push(`<rect x="${f(it.x)}" y="${f(it.y)}" width="${f(it.rw)}" height="${f(it.rh)}" ${it.fill != null ? `fill="${grayHex(it.fill)}"` : stroke(it)}/>`);
+    else if (it.t === 'circle') out.push(`<circle cx="${f(it.cx)}" cy="${f(it.cy)}" r="${f(it.r)}" ${stroke(it)}/>`);
+    else if (it.t === 'poly') out.push(`<polygon points="${it.pts.map(f).join(' ')}" fill="#000"/>`);
+    else if (it.t === 'text') {
+      out.push(`<text x="${f(it.x)}" y="${f(it.y)}" font-size="${f(it.size)}"${it.anchor !== 'start' ? ` text-anchor="${it.anchor}"` : ''}${it.bold ? ' font-weight="bold"' : ''}${it.gray ? ` fill="${grayHex(it.gray)}"` : ''}${it.rot ? ` transform="rotate(${it.rot} ${f(it.x)} ${f(it.y)})"` : ''}>${escXml(it.s)}</text>`);
+    }
+  }
+  out.push('</svg>');
+  return out.join('\n');
+}
+async function deflateZlib(u8) {
+  if (typeof CompressionStream === 'undefined') return null;
+  try {
+    const stream = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch (e) { return null; }
+}
+// PDF vectorial de una página con Helvetica (sin incrustar fuentes): lo abre cualquier lector.
+function pdfStr(s) {
+  const map = { 0x2026: 0x85, 0x2013: 0x96, 0x2014: 0x97, 0x2022: 0x95, 0x2019: 0x92 };
+  let out = '';
+  for (const ch of String(s)) {
+    let c = ch.charCodeAt(0);
+    if (c > 255) c = map[c] || 63;
+    if (c === 40 || c === 41 || c === 92) out += `\\${String.fromCharCode(c)}`;
+    else if (c < 32 || c > 126) out += `\\${c.toString(8).padStart(3, '0')}`;
+    else out += String.fromCharCode(c);
+  }
+  return out;
+}
+async function sheetPDF(sh) {
+  const k = 72 / 25.4, f = (v) => num(v, 3);
+  const c = [`${f(k)} 0 0 ${f(-k)} 0 ${f(sh.H * k)} cm`, '1 j'];
+  let last = '';
+  const pen = (it) => {
+    const key = `${it.w || 0.2}|${(it.dash || []).join(',')}|${it.gray || 0}`;
+    if (key === last) return;
+    last = key;
+    c.push(`${f(it.w || 0.2)} w [${(it.dash || []).map(f).join(' ')}] 0 d ${it.dash ? 0 : 1} J ${f(it.gray || 0)} G`);
+  };
+  const bez = (x, y, r) => {
+    const q = 0.5523 * r;
+    return `${f(x + r)} ${f(y)} m ${f(x + r)} ${f(y + q)} ${f(x + q)} ${f(y + r)} ${f(x)} ${f(y + r)} c ${f(x - q)} ${f(y + r)} ${f(x - r)} ${f(y + q)} ${f(x - r)} ${f(y)} c `
+      + `${f(x - r)} ${f(y - q)} ${f(x - q)} ${f(y - r)} ${f(x)} ${f(y - r)} c ${f(x + q)} ${f(y - r)} ${f(x + r)} ${f(y - q)} ${f(x + r)} ${f(y)} c`;
+  };
+  for (const it of sh.items) {
+    if (it.t === 'segs') {
+      pen(it);
+      for (const pl of chainSegs(it.a)) {
+        const parts = [`${f(pl[0])} ${f(pl[1])} m`];
+        for (let i = 2; i < pl.length; i += 2) parts.push(`${f(pl[i])} ${f(pl[i + 1])} l`);
+        c.push(`${parts.join(' ')} S`);
+      }
+    } else if (it.t === 'rect') {
+      if (it.fill != null) c.push(`${f(it.fill)} g ${f(it.x)} ${f(it.y)} ${f(it.rw)} ${f(it.rh)} re f`);
+      else { pen(it); c.push(`${f(it.x)} ${f(it.y)} ${f(it.rw)} ${f(it.rh)} re S`); }
+    } else if (it.t === 'circle') { pen(it); c.push(`${bez(it.cx, it.cy, it.r)} S`); }
+    else if (it.t === 'poly') c.push(`0 g ${f(it.pts[0])} ${f(it.pts[1])} m ${f(it.pts[2])} ${f(it.pts[3])} l ${f(it.pts[4])} ${f(it.pts[5])} l h f`);
+    else if (it.t === 'text') {
+      const th = (it.rot || 0) * DEG, co = Math.cos(th), si = Math.sin(th);
+      const w = textW(it.s, it.size, it.bold), dx = it.anchor === 'middle' ? -w / 2 : it.anchor === 'end' ? -w : 0;
+      c.push(`${f(it.gray || 0)} g BT /${it.bold ? 'F2' : 'F1'} 1 Tf ${f(co * it.size)} ${f(si * it.size)} ${f(si * it.size)} ${f(-co * it.size)} ${f(it.x + dx * co)} ${f(it.y + dx * si)} Tm (${pdfStr(it.s)}) Tj ET`);
+    }
+  }
+  const enc = new TextEncoder();
+  const raw = enc.encode(c.join('\n'));
+  const z = await deflateZlib(raw);
+  const body = z || raw;
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(sh.W * k)} ${f(sh.H * k)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    null,
+    `<< /Title (${pdfStr(sh.title)}) /Producer (${pdfStr(`${APP.name} ${APP.version}`)}) >>`,
+  ];
+  const chunks = [], offs = [];
+  let len = 0;
+  const push = (u8) => { chunks.push(u8); len += u8.length; };
+  push(enc.encode('%PDF-1.4\n'));
+  push(new Uint8Array([37, 226, 227, 207, 211, 10]));
+  objs.forEach((ob, i) => {
+    offs.push(len);
+    if (ob === null) {
+      push(enc.encode(`${i + 1} 0 obj\n<< /Length ${body.length}${z ? ' /Filter /FlateDecode' : ''} >>\nstream\n`));
+      push(body);
+      push(enc.encode('\nendstream\nendobj\n'));
+    } else push(enc.encode(`${i + 1} 0 obj\n${ob}\nendobj\n`));
+  });
+  const xref = len;
+  push(enc.encode(`xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offs.map((x) => `${String(x).padStart(10, '0')} 00000 n \n`).join('')}`
+    + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info ${objs.length} 0 R >>\nstartxref\n${xref}\n%%EOF\n`));
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+// DXF (R12) a escala 1:1 en mm, cada vista en su capa. La esquina mínima de la vista frontal
+// queda en (0, 0): las posiciones de la tabla de agujeros se miden desde ahí.
+function sheetDXF(p, o) {
+  const U = p.unit * 1000, gap = 20;
+  const sideKey = o.system === 'iso-a' ? 'right' : 'left';
+  const vF = sheetView(p, o.front, 'front', o.hidden), vT = sheetView(p, o.front, 'top', o.hidden), vS = sheetView(p, o.front, sideKey, o.hidden);
+  const w = (v) => (v.box.x1 - v.box.x0) * U, hgt = (v) => (v.box.y1 - v.box.y0) * U;
+  const layers = [
+    ['FRONTAL', vF, 0, 0, 7],
+    [sideKey === 'left' ? 'LATERAL_IZQUIERDA' : 'LATERAL_DERECHA', vS, w(vF) + gap, 0, 3],
+    ['SUPERIOR', vT, 0, sideKey === 'left' ? -(hgt(vT) + gap) : hgt(vF) + gap, 5],
+  ];
+  const L = [];
+  const g = (code, v) => L.push(String(code), typeof v === 'number' ? num(v, 4) : String(v));
+  g(0, 'SECTION'); g(2, 'HEADER'); g(9, '$ACADVER'); g(1, 'AC1009'); g(9, '$INSUNITS'); g(70, 4); g(0, 'ENDSEC');
+  g(0, 'SECTION'); g(2, 'TABLES');
+  g(0, 'TABLE'); g(2, 'LTYPE'); g(70, 1);
+  g(0, 'LTYPE'); g(2, 'CONTINUOUS'); g(70, 0); g(3, 'Solid line'); g(72, 65); g(73, 0); g(40, 0);
+  g(0, 'ENDTAB');
+  g(0, 'TABLE'); g(2, 'LAYER'); g(70, layers.length);
+  for (const [name, , , , color] of layers) { g(0, 'LAYER'); g(2, name); g(70, 0); g(62, color); g(6, 'CONTINUOUS'); }
+  g(0, 'ENDTAB'); g(0, 'ENDSEC');
+  g(0, 'SECTION'); g(2, 'ENTITIES');
+  for (const [name, v, ox, oy] of layers) {
+    const X = (x) => ox + (x - v.box.x0) * U, Y = (y) => oy + (y - v.box.y0) * U;
+    for (let i = 0; i < v.lines.length; i += 4) {
+      g(0, 'LINE'); g(8, name);
+      g(10, X(v.lines[i])); g(20, Y(v.lines[i + 1])); g(30, 0);
+      g(11, X(v.lines[i + 2])); g(21, Y(v.lines[i + 3])); g(31, 0);
+    }
+    for (const c of v.arcs) {
+      g(0, 'ARC'); g(8, name); g(10, X(c.cx)); g(20, Y(c.cy)); g(30, 0); g(40, c.r * U);
+      g(50, ((c.a0 / DEG) + 360) % 360); g(51, ((c.a1 / DEG) + 360) % 360);
+    }
+    for (const c of v.circles) if (c.vis) { g(0, 'CIRCLE'); g(8, name); g(10, X(c.x)); g(20, Y(c.y)); g(30, 0); g(40, c.r * U); }
+  }
+  g(0, 'ENDSEC'); g(0, 'EOF');
+  return `${L.join('\n')}\n`;
+}
+function printSheet(svg, sh) {
+  const ifr = h('iframe', { title: 'Imprimir hoja', 'aria-hidden': 'true', style: 'position:fixed;right:0;bottom:0;width:0;height:0;border:0' });
+  document.body.append(ifr);
+  const doc = ifr.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escXml(sh.title)}</title><style>@page{size:${sh.W}mm ${sh.H}mm;margin:0}html,body{margin:0;background:#fff}svg{display:block;width:${sh.W}mm;height:${sh.H}mm}</style></head><body>${svg}</body></html>`);
+  doc.close();
+  setTimeout(() => {
+    try { ifr.contentWindow.focus(); ifr.contentWindow.print(); }
+    catch (e) { toast('Tu navegador no dejó imprimir desde aquí. Descarga el PDF e imprímelo.', 'warn', 6000); }
+    setTimeout(() => ifr.remove(), 60000);
+  }, 150);
+}
+
+// ── Modal de la hoja de despiece ───────────────────────────────────
+const SHEET = { id: null, paper: 'carta', system: 'iso-e', front: null, hidden: true, token: 0 };
+try {
+  const saved = JSON.parse(localStorage.getItem('eslabon-urdf.hoja') || '{}');
+  if (SHEET_PAPERS[saved.paper]) SHEET.paper = saved.paper;
+  if (saved.system === 'iso-e' || saved.system === 'iso-a') SHEET.system = saved.system;
+} catch (e) { /* sin almacenamiento */ }
+function rememberSheet() {
+  try { localStorage.setItem('eslabon-urdf.hoja', JSON.stringify({ paper: SHEET.paper, system: SHEET.system })); } catch (e) { /* sin almacenamiento */ }
+}
+function openSheet(id) {
+  if (!S.parts.has(id)) return;
+  stopPlay();
+  if (SHEET.id !== id) { SHEET.id = id; SHEET.front = null; }
+  $('#sheetModal').hidden = false;
+  renderSheet();
+}
+function closeSheet() { SHEET.token++; const m = $('#sheetModal'); m.hidden = true; m.innerHTML = ''; }
+async function renderSheet() {
+  const modal = $('#sheetModal');
+  const p = S.parts.get(SHEET.id);
+  if (!p) { closeSheet(); return; }
+  const token = ++SHEET.token;
+  modal.innerHTML = '';
+  const segBtns = (label, key, opts) => {
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': label });
+    for (const [v, l, title] of opts) seg.append(h('button', { 'aria-pressed': String(SHEET[key] === v), title, onclick: () => { if (SHEET[key] === v) return; SHEET[key] = v; rememberSheet(); renderSheet(); } }, l));
+    return h('div', { class: 'field' }, h('span', null, label), seg);
+  };
+  const hid = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: SHEET.hidden }), 'Líneas ocultas');
+  hid.querySelector('input').addEventListener('change', (ev) => { SHEET.hidden = ev.target.checked; renderSheet(); });
+  const paperEl = h('div', { class: 'sheet-paper busy' }, 'Calculando vistas…');
+  const side = h('div', { class: 'modal-side' });
+  const btn = (label, icon, primary) => h('button', { class: `btn${primary ? ' primary' : ''}`, disabled: true }, iconEl(icon), h('span', null, label));
+  const pdfBtn = btn('Descargar PDF', 'download', true), svgBtn = btn('SVG', 'download'), dxfBtn = btn('DXF para Fusion', 'download'), printBtn = btn('Imprimir', 'sheet');
+  modal.append(h('div', { class: 'modal-card' },
+    h('div', { class: 'modal-h' }, h('h2', { id: 'sheetTitle' }, 'Hoja de despiece'),
+      h('span', { class: 'hint mono' }, `${p.name} · ${p.fileName}`),
+      h('button', { class: 'btn sm icon-btn ghost', 'aria-label': 'Cerrar', title: 'Cerrar (Esc)', onclick: closeSheet }, iconEl('close'))),
+    h('div', { class: 'modal-opts' },
+      segBtns('Hoja', 'paper', Object.entries(SHEET_PAPERS).map(([k, v]) => [k, v.n, `${v.w} × ${v.h} mm`])),
+      segBtns('Sistema', 'system', [['iso-e', 'Europeo', 'ISO-E · primer diedro: la vista superior va abajo'], ['iso-a', 'Americano', 'ISO-A · tercer diedro: la vista superior va arriba']]),
+      segBtns('Vista frontal mirando por', 'front', [['x', 'X', 'Mirar la pieza a lo largo de X'], ['y', 'Y', 'Mirar la pieza a lo largo de Y'], ['z', 'Z', 'Mirar la pieza a lo largo de Z']]),
+      hid),
+    h('div', { class: 'modal-body' }, h('div', { class: 'sheet-view' }, paperEl), side),
+    h('div', { class: 'modal-f' }, h('span', { class: 'hint' }, 'Imprime al 100 % (tamaño real) para que la escala sea la del plano.'), printBtn, dxfBtn, svgBtn, pdfBtn)));
+  await tick();
+  if (!SHEET.front) SHEET.front = autoFront(p);
+  modal.querySelectorAll('[aria-label="Vista frontal mirando por"] button').forEach((b, i) => b.setAttribute('aria-pressed', String('xyz'[i] === SHEET.front)));
+  let sh, svg;
+  try { sh = drawSheet(p, SHEET); svg = sheetSVG(sh); }
+  catch (e) {
+    logError(`Hoja de despiece: ${e && (e.stack || e.message)}`);
+    toast('No pude dibujar la hoja de esta pieza.', 'err', 7000, { label: 'Reportar', fn: () => openReport('bug') });
+    closeSheet(); return;
+  }
+  if (token !== SHEET.token) return;
+  paperEl.classList.remove('busy');
+  paperEl.innerHTML = svg;
+  const holes = sh.feats.filter((f) => f.kind === 'hole').length, bosses = sh.feats.length - holes;
+  const fm = (v) => num(v, 1);
+  side.append(
+    h('div', { class: 'sec-h' }, 'Lo que detecté'),
+    h('div', { class: 'hint' }, `${holes} ${holes === 1 ? 'agujero' : 'agujeros'} y ${bosses} ${bosses === 1 ? 'cilindro' : 'cilindros'} · ${fm(sh.size.x)} × ${fm(sh.size.y)} × ${fm(sh.size.z)} mm · escala ${scaleText(sh.s)}`),
+    h('div', { class: 'sec-h' }, 'Rehacerla en Fusion 360'),
+    h('ol', { class: 'tips' },
+      h('li', null, 'Descarga el DXF. En Fusion: Insertar › Insertar DXF, elige un plano, unidades mm y "Un boceto por capa": cada vista llega como boceto, con los agujeros como círculos exactos.'),
+      h('li', null, 'Extruye el perfil de la vista frontal lo que mide de fondo y recorta con las otras vistas.'),
+      h('li', null, 'Para modificarla, cambia las cotas del boceto. Los agujeros de la tabla dan Ø, profundidad y posición desde el origen.')),
+    h('div', { class: 'sec-h' }, '¿Directo de STL a sólido?'),
+    h('div', { class: 'hint' }, 'En Fusion: Insertar › Insertar malla con tu STL y luego Malla › Convertir malla. El método Prismático reconoce planos y cilindros, pero solo viene con licencia educativa o comercial; la personal solo convierte en facetado. El sólido convertido no trae cotas editables, por eso conviene redibujarla con esta hoja.'));
+  const base = rosName(p.name, 'pieza');
+  const wire = (b, fn) => { b.disabled = false; b.onclick = async () => { b.disabled = true; try { await fn(); } catch (e) { logError(`Hoja: ${e && e.message}`); toast('No pude generar el archivo.', 'err'); } b.disabled = false; }; };
+  wire(pdfBtn, async () => saveFile(`${base}_despiece.pdf`, await sheetPDF(sh)));
+  wire(svgBtn, () => saveFile(`${base}_despiece.svg`, new Blob([svg], { type: 'image/svg+xml' })));
+  wire(dxfBtn, () => saveFile(`${base}_vistas.dxf`, new Blob([sheetDXF(p, SHEET)], { type: 'application/dxf' })));
+  wire(printBtn, () => printSheet(svg, sh));
 }
 
 // ── Reportes de errores e ideas ────────────────────────────────────
@@ -3794,6 +4901,7 @@ function wireUI() {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     if (!$('#reportModal').hidden) { if (k === 'escape') closeReport(); return; }
     if (!$('#exportModal').hidden) { if (k === 'escape') closeExport(); return; }
+    if (!$('#sheetModal').hidden) { if (k === 'escape') closeSheet(); return; }
     if (k === 'escape') { if (S.jt) endJointTool(); else if (S.play) stopPlay(); else select(null); }
     else if (k === 'v') setTool('select');
     else if (k === 'g') setTool('move');
@@ -3804,6 +4912,7 @@ function wireUI() {
     else if (k === 'delete' || k === 'backspace') { ev.preventDefault(); deleteSelected(); }
   });
   $('#exportModal').addEventListener('click', (ev) => { if (ev.target.id === 'exportModal') closeExport(); });
+  $('#sheetModal').addEventListener('click', (ev) => { if (ev.target.id === 'sheetModal') closeSheet(); });
 
   // Tema claro/oscuro: recolorea la escena 3D
   const retheme = () => {
